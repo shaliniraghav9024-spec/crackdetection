@@ -1,0 +1,28 @@
+# Extra packages required by the Streamlit YOLOv8 defect-inspection app.
+# Install on top of an environment that already has torch, opencv-python,
+# pillow, numpy, pyyaml.
+
+streamlit>=1.50
+reportlab>=4.0
+
+# Detector + annotation utilities
+ultralytics>=8.4          # YOLOv8 train + predict
+supervision>=0.22         # bbox / annotation helpers used by the pipeline
+
+# Train-time augmentation. Ultralytics auto-uses albumentations for
+# Blur / MedianBlur / ToGray / CLAHE -- needed for blurry / low-light
+# inspection footage robustness.
+albumentations>=1.4
+
+# Voice commentary transcription.  The app defaults to Whisper-medium
+# (~1.5 GB download on first use) which gives much fewer mishearings
+# of inspection vocabulary ("paint" / "tent", "hole" / "whole", etc.)
+# than tiny / base.
+openai-whisper>=20231117
+
+# Zero-shot defect verification (filters out clocks / signs / flags
+# before they get reported as defects).
+open-clip-torch>=3.0
+
+# ffmpeg must also be available on PATH:
+#   sudo apt install ffmpeg
