@@ -8,17 +8,25 @@ reportlab>=4.0
 # Detector + annotation utilities
 ultralytics>=8.4          # YOLOv8 train + predict
 supervision>=0.22         # bbox / annotation helpers used by the pipeline
+huggingface-hub>=0.20     # auto-download auxiliary defect models on first use
 
 # Train-time augmentation. Ultralytics auto-uses albumentations for
 # Blur / MedianBlur / ToGray / CLAHE -- needed for blurry / low-light
 # inspection footage robustness.
 albumentations>=1.4
 
-# Voice commentary transcription.  The app defaults to Whisper-medium
-# (~1.5 GB download on first use) which gives much fewer mishearings
-# of inspection vocabulary ("paint" / "tent", "hole" / "whole", etc.)
-# than tiny / base.
+# Voice commentary transcription.  Primary backend is faster-whisper
+# (CTranslate2 with int8 on CPU is ~4x faster than openai-whisper at the
+# same model size and uses about half the RAM, so we default to the
+# "medium" model size for fewer mishearings on Indian-English narration).
+# openai-whisper is kept as a fallback.
+faster-whisper>=1.0
 openai-whisper>=20231117
+
+# Semantic transcript-to-defect matcher (defect_matcher.py). Embeds each
+# Whisper segment with all-MiniLM-L6-v2 (~90 MB) and matches by cosine
+# similarity, catching paraphrases the keyword list misses.
+sentence-transformers>=2.7
 
 # Zero-shot defect verification (filters out clocks / signs / flags
 # before they get reported as defects).

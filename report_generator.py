@@ -478,7 +478,7 @@ def render_html_report(
       {_unconfirmed_voice_mentions_html(unconfirmed_voice_mentions)}
       {_transcript_html(transcript)}
 
-      <p class="footer">Building Defect Inspection Report &middot; YOLOv8 + Whisper</p>
+      <p class="footer">Building Defect Inspection Report &middot; YOLO + Whisper</p>
     </div>
     """
     return f"""<!DOCTYPE html>

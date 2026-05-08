@@ -50,36 +50,48 @@ _LOAD_ERROR: Exception | None = None
 # The distractor prompts cover the most common real-world false
 # positives observed in inspection videos.
 DEFECT_PROMPTS: dict[str, list[str]] = {
+    "hole": [
+        "a photo of a hole in a painted wall",
+        "a round puncture or void in a concrete wall",
+        "a dark circular hole in a building wall",
+        "a photo of a pinhole or small opening in a wall surface",
+        "a hollow opening in a brick or plastered wall",
+    ],
     "minor_crack": [
-        "a photo of a small hole in a painted wall",
-        "a photo of a wall with a tiny puncture",
         "a photo of a hairline crack on a painted wall",
         "a close-up of a thin crack on a wall surface",
-        "a small dark spot on a painted concrete wall",
+        "a small dark line crack on a painted concrete wall",
+        "a fine fissure running across a wall surface",
+        "a narrow crack in plaster or paint",
     ],
     "major_crack": [
         "a photo of a large crack on a wall",
         "a photo of a wide structural crack in a building",
         "a deep fissure on a painted wall",
+        "a photo of a big crack running through concrete",
     ],
     "spalling": [
-        "a photo of concrete spalling with exposed material",
+        "a photo of concrete spalling with exposed rebar or material",
         "a chipped corner of a painted wall exposing the underlying material",
         "a photo of broken concrete with a chunk missing",
+        "a photo of concrete falling off a wall surface",
     ],
     "peeling": [
         "a photo of a wall with paint peeling off",
         "a photo of flaking paint on a wall",
         "a wall where paint has chipped off revealing a different colour underneath",
+        "paint blistering and lifting off a building wall",
     ],
     "stain": [
         "a photo of a discoloured patch on a wall",
         "a water stain on a painted wall",
         "rust marks on a wall surface",
+        "a brownish damp stain on a building wall",
     ],
     "algae": [
         "a photo of green algae growing on a wall",
         "moss or biological growth on an exterior wall",
+        "green patches of biological growth on a building facade",
     ],
 }
 

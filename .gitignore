@@ -130,12 +130,29 @@ dmypy.json
 # */migrations/*
 
 output
+
+# Datasets (too large for git — never commit images/labels)
+dataset/
+dataset_old/
+dataset_remapped/
+bd3_dataset/
+merged_dataset/
+BD3-Dataset/
+test/
+
+# YOLO training artifacts
+runs/
+*.cache
 labels.cache
-dataset/*
-runs/*
-BD3-Dataset/*
-test/*
-dataset/*
-dataset
-BD3-Dataset
-BD3-Dataset/*
+
+# Pretrained model weights (download separately — too large for git)
+*.pt
+models/
+
+# Editor backups
+*.save
+*.bak
+*~
+
+
+

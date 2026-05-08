@@ -1,20 +1,21 @@
 # YOLOv8 detection config for the BD3 building-defects dataset.
 #
-# IMPORTANT: keep the class order here identical to yolo_classes.txt
-# (labelImg writes class IDs based on yolo_classes.txt; ultralytics
+# IMPORTANT: keep the class order here identical to classes.txt
+# (labelImg writes class IDs based on classes.txt; ultralytics
 # resolves them via this file). If they get out of sync, the model will
 # learn the wrong class for every box.
 
 path: /home/shalini/building-defect-detection/dataset
+
 train: train/images
 val: val/images
 
+nc: 6
+
 names:
   0: algae
-  1: hole
-  2: major_crack
-  3: minor_crack
-  4: normal
-  5: peeling
-  6: spalling
-  7: stain
+  1: major_crack
+  2: minor_crack
+  3: peeling
+  4: spalling
+  5: stain

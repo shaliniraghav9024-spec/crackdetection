@@ -4,9 +4,12 @@ Voice-commentary transcription for inspection videos.
 Pipeline
 --------
 1. ``ffmpeg`` extracts a 16-kHz mono WAV track from the video.
-2. ``openai-whisper`` (loaded lazily, cached) transcribes the audio
-   into time-stamped segments.
-3. Segments are tagged with whichever defect keywords they mention,
+2. ``faster-whisper`` (CTranslate2 backend, ~4x faster than openai-whisper
+   on CPU) transcribes the audio into time-stamped segments. Falls back
+   to ``openai-whisper`` if the faster-whisper package is unavailable.
+3. Built-in Silero VAD strips silent / non-speech regions to suppress
+   the hallucinations that openai-whisper produced on long quiet clips.
+4. Segments are tagged with whichever defect keywords they mention,
    so the final report can correlate "what the inspector said" with
    "what the model saw" at the same timestamp.
 
@@ -34,41 +37,80 @@ DEFECT_KEYWORDS: dict[str, list[str]] = {
     "major_crack": [
         "major crack", "big crack", "large crack", "wide crack",
         "structural crack", "deep crack",
+        # Indian-English inspection variants
+        "very big crack", "major damage", "big damage", "huge crack",
+        "severe crack", "serious crack", "dangerous crack",
+        "wall is cracked badly", "wall has broken",
     ],
     "minor_crack": [
         "minor crack", "small crack", "hairline", "fine crack",
-        "thin crack",
+        "thin crack", "slight crack", "little crack",
+        # Whisper often expands "crack" as "crick" or "quack" -- handled below
+        "wall crack", "surface crack", "visible crack",
     ],
     "hole": [
         "hole", "holes", "puncture", "perforation", "hollow",
         "small hole", "tiny hole", "pin hole", "pinhole",
+        # Indian-English
+        "there is hole", "there is a hole", "hole in wall",
+        "hole on wall", "damage hole", "broken hole",
+        "opening in wall", "gap in wall",
     ],
     "spalling": [
         "spalling", "spalled", "spall", "concrete falling",
         "concrete coming off", "rebar exposed", "exposed rebar",
-        "broken concrete", "chipped",
+        "broken concrete", "chipped", "spalling is there",
+        "concrete is broken", "plaster is falling", "plaster falling",
+        "chunk missing", "material falling", "plaster is coming off",
     ],
     "peeling": [
         "peeling", "peel", "flaking", "flaked", "blistering",
         "delamination", "paint coming off",
-        # Common phrasings used by inspectors:
+        # Common Indian-English inspector phrasings:
         "paint is not proper", "paint not proper", "paint is removed",
         "paint removed", "paint is gone", "paint chipped",
         "paint is peeling", "no paint", "paint missing",
-        "paint is bad", "paint is broken",
+        "paint is bad", "paint is broken", "paint is damaged",
+        "paint is worn", "paint has worn", "paint worn off",
+        "paint is not there", "no paint on wall",
+        "paint is falling", "Wall has no paint",
     ],
-    "algae": ["algae", "moss", "fungus", "biological growth",
-              "green growth", "green patch"],
-    "stain": ["stain", "stained", "discolour", "discolor", "discoloration",
-              "discolouration", "watermark", "rust mark", "efflorescence"],
-    "water": ["water", "moisture", "damp", "leak", "leakage", "seepage",
-              "wet patch"],
-    "general_crack": ["crack", "cracks", "cracking", "cracked", "fissure"],
+    "algae": [
+        "algae", "moss", "fungus", "biological growth",
+        "green growth", "green patch", "black spot", "black spots",
+        "green stain", "green deposit", "green on wall",
+        "mould", "mold", "damp growth",
+    ],
+    "stain": [
+        "stain", "stained", "discolour", "discolor", "discoloration",
+        "discolouration", "watermark", "rust mark", "efflorescence",
+        "water stain", "damp stain", "brown stain", "dark stain",
+        "yellow stain", "salt deposit", "white deposit",
+    ],
+    "water": [
+        "water", "moisture", "damp", "leak", "leakage", "seepage",
+        "wet patch", "water damage", "water seepage", "water leakage",
+        "water is coming", "seepage is there",
+    ],
+    "general_crack": [
+        "crack", "cracks", "cracking", "cracked", "fissure",
+        # Whisper mishearings of "crack" with Indian accents
+        "crick", "krack",
+    ],
 }
 
 
 _WHISPER_MODEL = None
+_WHISPER_BACKEND: str | None = None  # "faster" or "openai"
 _WHISPER_LOAD_ERROR: Exception | None = None
+
+
+@dataclass
+class Word:
+    """A single word with its timestamp (faster-whisper word_timestamps)."""
+    start: float
+    end: float
+    text: str
 
 
 @dataclass
@@ -77,6 +119,10 @@ class Segment:
     end: float
     text: str
     detected_defects: list[str] = field(default_factory=list)
+    # Word-level timestamps when ``word_timestamps=True`` was passed
+    # (faster-whisper backend only). Empty list on the openai-whisper
+    # fallback or when VAD strips a segment to a single token.
+    words: list[Word] = field(default_factory=list)
 
 
 @dataclass
@@ -156,23 +202,47 @@ _WHISPER_LOADED_SIZE: str | None = None
 def _load_whisper(model_size: str = "medium"):
     """Load (and cache) the whisper model. Returns ``None`` on failure.
 
+    Prefers ``faster-whisper`` (CTranslate2 + int8 on CPU is ~4x faster
+    than openai-whisper at the same model size and uses ~half the RAM).
+    Falls back to ``openai-whisper`` if faster-whisper isn't installed.
+
     The cache is keyed on ``model_size`` so callers can switch between
-    "tiny" and "medium" at runtime (e.g. via the Streamlit sidebar) and
-    each size loads at most once per process.
+    "tiny" and "medium" at runtime and each size loads at most once
+    per process.
     """
     global _WHISPER_MODEL, _WHISPER_LOAD_ERROR, _WHISPER_LOADED_SIZE
+    global _WHISPER_BACKEND
     if _WHISPER_MODEL is not None and _WHISPER_LOADED_SIZE == model_size:
         return _WHISPER_MODEL
     # Different size requested -> drop the previous one and reload.
     _WHISPER_MODEL = None
     _WHISPER_LOAD_ERROR = None
+    _WHISPER_BACKEND = None
+
+    # Try faster-whisper first (preferred backend on CPU).
+    try:
+        from faster_whisper import WhisperModel
+        # int8 keeps RAM low on CPU; cpu_threads=0 -> use all available.
+        _WHISPER_MODEL = WhisperModel(
+            model_size, device="cpu", compute_type="int8", cpu_threads=0,
+        )
+        _WHISPER_LOADED_SIZE = model_size
+        _WHISPER_BACKEND = "faster"
+        return _WHISPER_MODEL
+    except Exception as fw_err:  # noqa: BLE001
+        _WHISPER_LOAD_ERROR = fw_err  # tentative; may be replaced below
+
+    # Fallback to openai-whisper.
     try:
         import whisper  # openai-whisper
         _WHISPER_MODEL = whisper.load_model(model_size)
         _WHISPER_LOADED_SIZE = model_size
+        _WHISPER_BACKEND = "openai"
+        _WHISPER_LOAD_ERROR = None
         return _WHISPER_MODEL
     except Exception as e:  # noqa: BLE001
         _WHISPER_LOAD_ERROR = e
+        _WHISPER_BACKEND = None
         return None
 
 
@@ -226,13 +296,24 @@ _HOMOPHONE_RULES: list[tuple[str, str]] = [
     # "tent is not proper" / "tent is removed" -> "paint ..."
     (r"\btent\b(?=\s+(is\s+not\s+proper|is\s+removed|is\s+gone|"
      r"not\s+proper|is\s+bad|is\s+chipped|is\s+peeling|missing))", "paint"),
-    # "whole on wall" / "whole in wall" -> "hole on wall"
-    (r"\bwhole\b(?=\s+(on|in|of)\s+(the\s+)?wall)", "hole"),
-    # "pant is not proper" -> "paint is not proper"
+    # "paid is not proper" -> "paint is not proper"
+    (r"\bpaid\b(?=\s+(is\s+not\s+proper|is\s+not\s+there|is\s+removed|"
+     r"not\s+proper|is\s+bad|is\s+missing))", "paint"),
+    # "pant" -> "paint" in inspection context
     (r"\bpant\b(?=\s+(is\s+not\s+proper|is\s+removed|is\s+gone|"
-     r"not\s+proper))", "paint"),
-    # "ploor" / "blore" -> "floor"  (used in voice locations)
-    # (no defect mapping; just helps "stain on floor" match cleanly)
+     r"not\s+proper|is\s+not\s+there))", "paint"),
+    # "whole on wall" / "whole in wall" / just "whole wall" -> "hole ..."
+    (r"\bwhole\b(?=\s+(on|in|of|in\s+the)\s+(the\s+)?wall)", "hole"),
+    # "whole" followed immediately by "in" or "on" -> hole
+    (r"\bwhole\b(?=\s+(is\s+there|is\s+seen|here))", "hole"),
+    # "crick" -> "crack" (common mishearing)
+    (r"\bcrick\b(?=\s*(s|ing|ed)?(\s|$))", "crack"),
+    # "spallings" / "spalling is" are fine; catch "sparring"
+    (r"\bsparring\b(?=\s+(on|in|of)\s+(the\s+)?wall)", "spalling"),
+    # "peeping" -> "peeling" (Whisper mishearing)
+    (r"\bpeeping\b", "peeling"),
+    # "feeling" -> "peeling" when preceded by paint / wall context
+    (r"(?<=paint\s)\bfeeling\b", "peeling"),
 ]
 
 
@@ -315,10 +396,47 @@ def transcribe_video(
         # as Marathi / Hindi and emit garbled results -- pinning the
         # language fixes that.  Pass ``language=None`` to let Whisper
         # auto-detect (matches its old behaviour).
-        result = model.transcribe(
-            str(audio_path), fp16=False, verbose=False,
-            language=language,
-        )
+        if _WHISPER_BACKEND == "faster":
+            # faster-whisper streams a generator; we materialise it
+            # below so the rest of the code path is identical to the
+            # openai-whisper one.  vad_filter=True strips silence and
+            # kills the long-quiet hallucinations the old backend
+            # produced on inspection-pause clips.  word_timestamps=True
+            # gives us per-word start/end which downstream uses to seek
+            # straight to the moment a defect was mentioned (rather
+            # than just the segment midpoint).
+            seg_iter, info = model.transcribe(
+                str(audio_path),
+                language=language,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 500},
+                beam_size=5,
+                word_timestamps=True,
+            )
+            raw_segments = [
+                {
+                    "start": float(s.start),
+                    "end": float(s.end),
+                    "text": s.text,
+                    "words": [
+                        {
+                            "start": float(w.start),
+                            "end": float(w.end),
+                            "text": w.word,
+                        }
+                        for w in (s.words or [])
+                    ],
+                }
+                for s in seg_iter
+            ]
+            detected_lang = info.language
+        else:
+            result = model.transcribe(
+                str(audio_path), fp16=False, verbose=False,
+                language=language,
+            )
+            raw_segments = result.get("segments") or []
+            detected_lang = result.get("language")
     except Exception as e:  # noqa: BLE001
         if not keep_audio and audio_path.exists():
             audio_path.unlink(missing_ok=True)
@@ -330,24 +448,34 @@ def transcribe_video(
             elapsed_sec=time.time() - started,
         )
 
-    raw_segments = result.get("segments") or []
     segments = []
     defect_mentions: dict[str, list[float]] = {}
+    full_text_parts: list[str] = []
     for s in raw_segments:
         text = _dedup_repeated_phrases((s.get("text") or "").strip())
         defects = _tag_defects(text)
+        words = [
+            Word(
+                start=float(w.get("start", 0.0)),
+                end=float(w.get("end", 0.0)),
+                text=str(w.get("text") or ""),
+            )
+            for w in (s.get("words") or [])
+        ]
         seg = Segment(
             start=float(s.get("start", 0.0)),
             end=float(s.get("end", 0.0)),
             text=text,
             detected_defects=defects,
+            words=words,
         )
         segments.append(seg)
+        full_text_parts.append(text)
         for d in defects:
             defect_mentions.setdefault(d, []).append(seg.start)
 
-    full_text = _dedup_repeated_phrases((result.get("text") or "").strip())
-    language = result.get("language")
+    full_text = _dedup_repeated_phrases(" ".join(p for p in full_text_parts if p))
+    language = detected_lang
     has_speech = bool(full_text)
 
     if not keep_audio and audio_path and audio_path.exists():

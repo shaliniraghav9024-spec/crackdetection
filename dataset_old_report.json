@@ -1,0 +1,1364 @@
+{
+  "root": "/home/shalini/building-defect-detection/dataset_old",
+  "num_classes": 6,
+  "splits": {
+    "train": {
+      "image_count": 115789,
+      "label_count": 115789,
+      "missing_labels": [],
+      "missing_labels_total": 0,
+      "orphan_labels": [],
+      "orphan_labels_total": 0
+    },
+    "val": {
+      "image_count": 1790,
+      "label_count": 1790,
+      "missing_labels": [],
+      "missing_labels_total": 0,
+      "orphan_labels": [],
+      "orphan_labels_total": 0
+    }
+  },
+  "duplicates": [
+    {
+      "hash": "5b02f9f1fc206279d2cb2f5157d8b63f",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Planning Windows .jpg"
+      ]
+    },
+    {
+      "hash": "994c91d36cd234d5e1dffbf8f9f3181c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Peconic House Mapos Table Shelving Chair Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Peconic House Mapos Table Shelving Chair Countertop Beam .jpg"
+      ]
+    },
+    {
+      "hash": "d2e8635b921ac199798552edc2f069ae",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Table Windows Chair Deck Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Table Windows Chair Deck Beam .jpg"
+      ]
+    },
+    {
+      "hash": "f0c25ab99c598e48f975f2c5af460532",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Deck .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Deck .jpg"
+      ]
+    },
+    {
+      "hash": "464fb0db4a123637f9390ec51da3eaa8",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Facade .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Facade .jpg"
+      ]
+    },
+    {
+      "hash": "ef6a1370b5cac4831a25c17ebdc5e15d",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls06_083.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_stain_cls06_083.jpg"
+      ]
+    },
+    {
+      "hash": "9e7d76ac251caa32889bd2b786017bc5",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Table .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Table .jpg"
+      ]
+    },
+    {
+      "hash": "8b92375de1bf1a05ca60e4d37744eaad",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Chair Windows Door Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Chair Windows Door Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "fb5725e2c05077c3017da7f78a398974",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Mornington Beach Houses Habitech Systems Sink Bathroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Mornington Beach Houses Third Skin Sink Bathroom .jpg"
+      ]
+    },
+    {
+      "hash": "f71275ffb04da9b5e327cebe1c457d64",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls01_188.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_major_crack_cls01_188.jpg"
+      ]
+    },
+    {
+      "hash": "da73591d8f55dee7bc0ec8c7691fce30",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Chair .jpg"
+      ]
+    },
+    {
+      "hash": "50641a6e521a313b14bd95c5328f250c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Sofa .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Sofa .jpg"
+      ]
+    },
+    {
+      "hash": "aa6f7a0ac6cee8b297704eb682daf020",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Table Sofa Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Table Sofa Windows .jpg"
+      ]
+    },
+    {
+      "hash": "43197e8a7f699d8a59e82d83e4577db0",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_minor_crack_cls02_051.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls02_051.jpg"
+      ]
+    },
+    {
+      "hash": "fb3b79da6dca6355762de3d56718d2de",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls01_087.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_major_crack_cls01_087.jpg"
+      ]
+    },
+    {
+      "hash": "bf9f5fe9de277811bc27510bc6054fda",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_peeling_cls03_121.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls03_020.jpg"
+      ]
+    },
+    {
+      "hash": "b1b1a615aa9eac326549fcd20f0d0f99",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Table Shelving Windows Chair Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Table Shelving Windows Chair Beam .jpg"
+      ]
+    },
+    {
+      "hash": "5086c763a910f9f01ec9bec929fa50de",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Windows Door Bed Bedroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Bedroom Windows Door Bed .jpg"
+      ]
+    },
+    {
+      "hash": "d491a2c63d1d5097b511d5b6771f3d32",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Exterior Photography Facade .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Facade .jpg"
+      ]
+    },
+    {
+      "hash": "054f63cee6a08cb9b7c0c31fb20e384a",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Stairs Windows Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Stairs Windows Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "231a9790ee1582a084918f23260a0af9",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Garden Column .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Garden Column .jpg"
+      ]
+    },
+    {
+      "hash": "afccefb1b21e1c039d67ef34396b0de6",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Windows Table Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Windows Table Chair .jpg"
+      ]
+    },
+    {
+      "hash": "7f49d4196eecef9f5d27386bbb097d4a",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Bathtub Bathroom Sink .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Bathroom Bathtub Sink .jpg"
+      ]
+    },
+    {
+      "hash": "6ff7f084e55d19b6a02c1607100c40a2",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Countertop Sink Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Countertop Sink Chair .jpg"
+      ]
+    },
+    {
+      "hash": "0e09414f83e4802d59a98df9d7fd735e",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Facade Chair Courtyard Patio .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Facade Chair Courtyard Patio .jpg"
+      ]
+    },
+    {
+      "hash": "7c7870cc0019b949cd5b257cd14e53f8",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Facade Beam Courtyard .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Facade Beam Courtyard .jpg"
+      ]
+    },
+    {
+      "hash": "b5ee8b5a7ddced06d2fc0dee6d746d89",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls00_441.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_algae_cls00_441.jpg"
+      ]
+    },
+    {
+      "hash": "385f8b86077d2c4c54e224659a8cbe8c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Generali Tower Zaha Hadid Architects Table Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/CityLife Shopping District Zaha Hadid Architects Table Chair .jpg"
+      ]
+    },
+    {
+      "hash": "b2c792f2375649b4b21a9102fa2a47c3",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Countertop .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Countertop .jpg"
+      ]
+    },
+    {
+      "hash": "6a4c5df7a3e7150713ff88d5498c2aee",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Kitchen Table Countertop Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Table Countertop Chair .jpg"
+      ]
+    },
+    {
+      "hash": "3f1237c5e2f62f62c27f9da20d928cdc",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_algae_cls00_546.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls00_546.jpg"
+      ]
+    },
+    {
+      "hash": "0d5fbfaa5d7f4e7fd84fabde9ee37c0c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Table Windows Chair Countertop .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Table Windows Chair Countertop .jpg"
+      ]
+    },
+    {
+      "hash": "baa72c96b54de1e907f1f330890ce338",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_peeling_cls03_101.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls03_101.jpg"
+      ]
+    },
+    {
+      "hash": "35af5c6cb24ba487de73a162cab275f7",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls06_079.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/bldg_stain_cls06_079.jpg"
+      ]
+    },
+    {
+      "hash": "69d694144e60456d2b553b6f3b687949",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Balcony .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Balcony .jpg"
+      ]
+    },
+    {
+      "hash": "6822a281d08b307c9e722c4c231d5f8b",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Table Lighting Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Table Lighting Chair .jpg"
+      ]
+    },
+    {
+      "hash": "cb6313d054bd96b47fe4a8b075eb3ed8",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Kitchen Countertop Glass Sink Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Countertop Glass Sink Beam .jpg"
+      ]
+    },
+    {
+      "hash": "3af42234e19a5b851f1dac9167ef4509",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Countertop Kitchen Sink Shelving .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Countertop Kitchen Sink Shelving .jpg"
+      ]
+    },
+    {
+      "hash": "6caaa6c0d2916d01f7121d1e21a35c8e",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls05_013.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_spalling_cls05_013.jpg"
+      ]
+    },
+    {
+      "hash": "40152ae7656477f84791507b61a50691",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_peeling_cls03_274.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls03_018.jpg"
+      ]
+    },
+    {
+      "hash": "4d2ee975cd6a410c5da4b7ee4898695f",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_algae_cls00_547.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls00_547.jpg"
+      ]
+    },
+    {
+      "hash": "7749d45f08d265d7b0d83973935e95a7",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Kitchen Shelving Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Shelving Chair .jpg"
+      ]
+    },
+    {
+      "hash": "6c2a5f3fdc19ad229ebf063f53c9e160",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Chair .jpg"
+      ]
+    },
+    {
+      "hash": "ac94b7d8501af88c69202783b569ed84",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Stairs Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Stairs Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "ccda72e2389636cdeed1dcd2b9badc0c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_major_crack_cls01_030.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls01_030.jpg"
+      ]
+    },
+    {
+      "hash": "932ea8e4b54fabda4a2d014c0952b645",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Facade Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Facade Windows .jpg"
+      ]
+    },
+    {
+      "hash": "d9b7bf17a47738cdf60064d015cae6fa",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "9ee7668635116a803292e9950beb72be",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Stairs .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Stairs .jpg"
+      ]
+    },
+    {
+      "hash": "38d06227ebab5a4f7824d3f16bf745f2",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "9bb892ef362d3c74cc5191ddc1ea23ab",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls06_030.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_stain_cls06_030.jpg"
+      ]
+    },
+    {
+      "hash": "236ddc4b3a73215624de44185accc759",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Windows Door Facade .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Windows Door Facade .jpg"
+      ]
+    },
+    {
+      "hash": "a110ee6da0d3c5503a9cb7f6878bbbd2",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_peeling_cls03_110.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls03_110.jpg"
+      ]
+    },
+    {
+      "hash": "7991b097ec0943bcaa760360b586b33c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Column .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Column .jpg"
+      ]
+    },
+    {
+      "hash": "759a580ebc0a312a15e4d8ff2f8af79e",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Patio .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Patio .jpg"
+      ]
+    },
+    {
+      "hash": "cab97ee03635fc5b640dfeaa33df628d",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Sofa .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Sofa .jpg"
+      ]
+    },
+    {
+      "hash": "59c495abf0c5e2dee512444140bd5715",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Exterior Photography Facade Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Facade Windows .jpg"
+      ]
+    },
+    {
+      "hash": "7f16d05eb8620219d29c5ccc05b31594",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Windows .jpg"
+      ]
+    },
+    {
+      "hash": "dfabd31fb3895b2b340b125b89a20d20",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Sofa Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Sofa Windows .jpg"
+      ]
+    },
+    {
+      "hash": "5bc03d49f3425776bcc93bbff8aa7e42",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street mw works architecture design Facade Courtyard .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Helen Street House mw works architecture design Facade Courtyard .jpg"
+      ]
+    },
+    {
+      "hash": "35907c8b353efd733d94a4eb5ae9f2cb",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Table Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Table Chair .jpg"
+      ]
+    },
+    {
+      "hash": "a2b511ace30b0c1f335090586dadc00a",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_spalling_cls05_060.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls05_060.jpg"
+      ]
+    },
+    {
+      "hash": "d8fd51cea08b094655540c6783589728",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Windows Facade .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Exterior Photography Windows Facade .jpg"
+      ]
+    },
+    {
+      "hash": "4de838f19072631f9a6779ea93b85a4e",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Chair Deck .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Chair Deck .jpg"
+      ]
+    },
+    {
+      "hash": "4d370e81a4f799061bbd7a7396d20f82",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls00_536.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_algae_cls00_536.jpg"
+      ]
+    },
+    {
+      "hash": "40a553fa269eb190b69c9d905ed9c063",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/MKR Store in Seville Guillermo V zquez Consuegra Drawings .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/MKR Store V squez Consuegra Interior Photography .jpg"
+      ]
+    },
+    {
+      "hash": "f5bee1ca5129fec752fe80d6378c5161",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Generali Tower Zaha Hadid Architects Facade Cityscape .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/CityLife Shopping District Zaha Hadid Architects Facade Cityscape .jpg"
+      ]
+    },
+    {
+      "hash": "5d3c40c80df8cab28674381a53965235",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Facade Deck Courtyard .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Facade Deck Courtyard .jpg"
+      ]
+    },
+    {
+      "hash": "fcfde042591b9d22aaf5c393a26e0d16",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Touton Architectes Windows Facade Garden .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Villa Eiders Hugues Touton Edouard Touton Windows Facade Garden .jpg"
+      ]
+    },
+    {
+      "hash": "56ee9e4927188d7bded3d01fea4a3fae",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Planning Table Windows Chair Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Table Windows Chair Beam .jpg"
+      ]
+    },
+    {
+      "hash": "3f804c9da2d83f6eaf102adbccd74126",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Windows Arch .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Windows Arch .jpg"
+      ]
+    },
+    {
+      "hash": "36c3154167b9beaa1246c2489fe3afc4",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_minor_crack_cls02_046.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls02_046.jpg"
+      ]
+    },
+    {
+      "hash": "f66b4d421584cee6fc2dd79bfb00a360",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Door Chair Bedroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Door Chair Bedroom .jpg"
+      ]
+    },
+    {
+      "hash": "2544069c51009830152f12a63135e178",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Planning Table Windows Lighting Chair Beam .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/House in Scotch Cove FBM Architecture Interior Design Table Windows Lighting Chair Beam .jpg"
+      ]
+    },
+    {
+      "hash": "53fa168338f0c54d09db7e3bd567dbce",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Bathroom Sink .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Sink Bathroom .jpg"
+      ]
+    },
+    {
+      "hash": "eec88cf1eedace1e7bb973c16dd177cd",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Chair .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Chair .jpg"
+      ]
+    },
+    {
+      "hash": "dc2851586ec60fe8200e2cd12185d4e6",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Windows Bed Bedroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Windows Bed Bedroom .jpg"
+      ]
+    },
+    {
+      "hash": "5a2ce0e7ebfbc7e7a80134f08a893e3a",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Lighting Bed Bedroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Lighting Bed Bedroom .jpg"
+      ]
+    },
+    {
+      "hash": "04eaefcfe47bb0d21cbc04c0d1b39e8c",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Sofa Table Windows Chair Beam Deck .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Interior Photography Living Room Sofa Table Windows Chair Beam Deck .jpg"
+      ]
+    },
+    {
+      "hash": "9d27c7acd1f20db8222f88a52255deaa",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_spalling_cls05_011.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls05_011.jpg"
+      ]
+    },
+    {
+      "hash": "84d97d9b275e13b44bb32fdcbb63320b",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls07_001.png",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls07_001.png"
+      ]
+    },
+    {
+      "hash": "239331b041af7c8c22587f6239821700",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Sink Bathroom .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Sink Bathroom .jpg"
+      ]
+    },
+    {
+      "hash": "35187ca1c159fd5a773f27b767c46e72",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Sofa Table .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Sofa Table .jpg"
+      ]
+    },
+    {
+      "hash": "150b54d20f18687a6388ea52f1ac1e00",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Exterior Photography Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Hudson River House Resolution 4 Architecture Windows .jpg"
+      ]
+    },
+    {
+      "hash": "8bdcd97bec9520f883777b40ff70dcf5",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls05_008.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_spalling_cls05_239.jpg"
+      ]
+    },
+    {
+      "hash": "99df7a6637c556dc61df08974cb99003",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_major_crack_cls01_020.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls01_020.jpg"
+      ]
+    },
+    {
+      "hash": "b14a05f14b04106582bba27fa3a3da8e",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/cls02_049.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/bldg_minor_crack_cls02_049.jpg"
+      ]
+    },
+    {
+      "hash": "068207b70acace9b0b0b430f5cee8b2f",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Interior Photography Fence Windows Handrail .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Playstudios HQ RUST architects Fence Windows Handrail .jpg"
+      ]
+    },
+    {
+      "hash": "94c3550dab82d8d1abd1319f964b4240",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Mornington Beach Houses Habitech Systems Windows Door Facade .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Mornington Beach Houses Third Skin Windows Door Facade .jpg"
+      ]
+    },
+    {
+      "hash": "6f1c063ae0f22e77ca0b70f1676526b8",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Opera Loft Corner OM Shumelda Countertop Sink Windows .jpg",
+        "/home/shalini/building-defect-detection/dataset_old/train/images/Apartment in Lviv O M Shumelda Countertop Sink Windows .jpg"
+      ]
+    },
+    {
+      "hash": "ab38465f0893e9b55aea753351d0a5b6",
+      "paths": [
+        "/home/shalini/building-defect-detection/dataset_old/val/images/bldg_stain_cls06_010.jpg",
+        "/home/shalini/building-defect-detection/dataset_old/val/images/cls06_010.jpg"
+      ]
+    }
+  ],
+  "summary": {
+    "splits": {
+      "train": 115789,
+      "val": 1790
+    },
+    "duplicate_redundant_images": 90,
+    "decode_errors": 0,
+    "read_errors": 0,
+    "missing_labels": 0,
+    "orphan_labels": 0,
+    "bad_label_files": 92,
+    "empty_label_files": 102007,
+    "total_annotation_rows": 53427,
+    "class_distribution": {
+      "train": {
+        "0": 15615,
+        "1": 5580,
+        "2": 18643,
+        "3": 7379,
+        "5": 415
+      },
+      "val": {
+        "0": 1781,
+        "1": 738,
+        "2": 2157,
+        "3": 965,
+        "5": 52
+      }
+    }
+  },
+  "duplicate_image_count": 90,
+  "decode_errors": [],
+  "decode_error_total": 0,
+  "read_errors": [],
+  "read_error_total": 0,
+  "total_label_rows": 53427,
+  "empty_label_files": 102007,
+  "bad_label_files": [
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13141.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.49383593749999993,y=0.49313194444444447,w=1.0,h=0.6151805555555555)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13228.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.35331250000000003,y=0.16334722222222223,w=0.70940625,h=0.1108888888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13143.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.5014453124999999,y=0.4720486111111111,w=1.0,h=0.6625138888888888)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3660.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.50247265625,y=0.9539583333333334,w=0.018007812500000053,h=0.12569444444444444)",
+        "line 2: bbox extends outside image (x=0.5595429687500001,y=0.9578750000000001,w=0.027742187499999994,h=0.1021944444444445)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13145.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.33410546875,y=0.49559027777777787,w=0.6686640625,h=0.6364583333333335)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11429.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.09335546875,y=0.15938194444444445,w=0.22389843750000005,h=0.048402777777777795)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3486.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.7614921875,y=0.21784722222222222,w=0.0814531249999999,h=0.6261111111111112)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12742.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.88421875,y=0.05785416666666667,w=0.23776562500000004,h=0.062402777777777786)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12561.txt",
+      "errors": [
+        "line 10: bbox extends outside image (x=0.14548046875,y=0.17175694444444445,w=0.2986015625,h=0.04965277777777776)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11437.txt",
+      "errors": [
+        "line 10: bbox extends outside image (x=0.14138671874999997,y=0.15261805555555555,w=0.3256953125,h=0.03481944444444446)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13239.txt",
+      "errors": [
+        "line 6: bbox extends outside image (x=0.84228515625,y=0.20854861111111112,w=0.3392734375,h=0.11770833333333333)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11431.txt",
+      "errors": [
+        "line 13: bbox extends outside image (x=0.12156640625000002,y=0.14625694444444445,w=0.2822421875,h=0.059180555555555556)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12746.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.85894140625,y=0.059652777777777784,w=0.28491406249999995,h=0.06277777777777778)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11517.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.91983203125,y=0.26995833333333336,w=0.16785156249999994,h=0.07358333333333336)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13246.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.46967968750000005,y=0.23271527777777778,w=0.06049999999999996,h=0.9055416666666667)",
+        "line 7: bbox extends outside image (x=0.12039453124999999,y=0.11622916666666668,w=0.28039843750000004,h=0.10037499999999999)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12767.txt",
+      "errors": [
+        "line 12: bbox extends outside image (x=0.73375390625,y=0.08796527777777777,w=0.5445234375,h=0.056208333333333325)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13078.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.5011484375,y=0.20259722222222223,w=1.0,h=0.14269444444444446)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11422.txt",
+      "errors": [
+        "line 9: bbox extends outside image (x=0.08051171875000002,y=0.18895138888888888,w=0.17660156250000003,h=0.04912499999999999)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11515.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.9537890625,y=0.23531944444444447,w=0.1073437499999999,h=0.07286111111111113)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11514.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.9350820312500002,y=0.241875,w=0.13082031250000004,h=0.05616666666666666)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12744.txt",
+      "errors": [
+        "line 5: bbox extends outside image (x=0.8799648437500001,y=0.05784722222222223,w=0.2510859375,h=0.05966666666666667)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13232.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.13342578125000001,y=0.19453472222222223,w=0.26716406249999997,h=0.10229166666666666)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12563.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.16433984375000002,y=0.1794652777777778,w=0.3360234375,h=0.04754166666666669)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11476.txt",
+      "errors": [
+        "line 10: bbox extends outside image (x=0.9144414062500001,y=0.2399375,w=0.20696093750000008,h=0.05615277777777779)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12757.txt",
+      "errors": [
+        "line 12: bbox extends outside image (x=0.7929296875,y=0.06518055555555556,w=0.41975,h=0.0688888888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11432.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.117046875,y=0.1443402777777778,w=0.28964062500000004,h=0.049763888888888885)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13142.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.5041640625,y=0.4886944444444445,w=1.0,h=0.6240555555555556)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12745.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.8698320312500001,y=0.05938888888888889,w=0.2616328124999999,h=0.051972222222222225)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12740.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.8841875,y=0.058465277777777776,w=0.24184374999999997,h=0.06206944444444444)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11518.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.9644921875,y=0.2583402777777778,w=0.07853125,h=0.050347222222222224)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11433.txt",
+      "errors": [
+        "line 9: bbox extends outside image (x=0.1311796875,y=0.14324305555555555,w=0.29973437500000005,h=0.05015277777777778)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12562.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.15851953125,y=0.17344444444444446,w=0.3229296875,h=0.044555555555555536)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13243.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.6205585937500001,y=0.2404305555555555,w=0.05717968749999996,h=0.8276944444444444)",
+        "line 11: bbox extends outside image (x=0.20262890625000002,y=0.20291666666666672,w=0.04083593750000001,h=0.8204444444444445)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12872.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.32575390625,y=0.006006944444444444,w=0.3893515625,h=0.06890277777777779)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12747.txt",
+      "errors": [
+        "line 6: bbox extends outside image (x=0.8502617187500001,y=0.06443750000000001,w=0.3139921875,h=0.05834722222222223)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12743.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.88430078125,y=0.06831944444444445,w=0.2327265624999999,h=0.05338888888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12759.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.7585039062500001,y=0.0735625,w=0.4840859375,h=0.05537500000000001)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3472.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.8880625000000001,y=0.14934722222222224,w=0.06354687500000011,h=0.3469444444444445)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3487.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.7294140625000001,y=0.20482638888888893,w=0.09440625000000002,h=0.5942638888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11473.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.8610781249999999,y=0.16636111111111113,w=0.05457812499999992,h=0.5844166666666667)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11474.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.8499296875,y=0.17990972222222223,w=0.3132187499999999,h=0.07940277777777778)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13139.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.50358203125,y=0.508625,w=0.9999921875000001,h=0.6006111111111111)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11420.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.07580078125,y=0.2084652777777778,w=0.16371093750000001,h=0.04168055555555555)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3658.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.48859765625,y=0.9482569444444445,w=0.02716406249999999,h=0.1411805555555557)",
+        "line 2: bbox extends outside image (x=0.5485156250000001,y=0.9347916666666667,w=0.02206250000000001,h=0.1344722222222223)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12555.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.12137109374999999,y=0.16869444444444445,w=0.25296093750000004,h=0.052166666666666674)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13235.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.7811015625,y=0.26586111111111116,w=0.440234375,h=0.10141666666666668)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3657.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.48763281250000007,y=0.9291250000000001,w=0.02710937499999995,h=0.1646666666666666)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13247.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.40441015625,y=0.21401388888888886,w=0.04846093749999998,h=0.9080277777777778)",
+        "line 6: bbox extends outside image (x=0.08986328125,y=0.08246527777777778,w=0.1954296875,h=0.09076388888888888)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12876.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.34305859375000003,y=0.014569444444444447,w=0.40755468750000007,h=0.06805555555555556)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12559.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.125203125,y=0.17043750000000002,w=0.26290625,h=0.05065277777777776)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11435.txt",
+      "errors": [
+        "line 11: bbox extends outside image (x=0.12815234375,y=0.1331527777777778,w=0.2934921875,h=0.036305555555555556)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3655.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.4759609375,y=0.9249236111111111,w=0.029046875000000052,h=0.17101388888888888)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3490.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.7714453125,y=0.25988194444444446,w=0.08165624999999999,h=0.8500694444444444)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11436.txt",
+      "errors": [
+        "line 6: bbox extends outside image (x=0.12583984374999999,y=0.13186111111111112,w=0.29833593750000004,h=0.036305555555555556)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13077.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.501984375,y=0.24065972222222223,w=1.0,h=0.0995416666666667)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11424.txt",
+      "errors": [
+        "line 10: bbox extends outside image (x=0.09146484375,y=0.17147916666666668,w=0.2034765625,h=0.05648611111111113)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11516.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.9323593750000001,y=0.2660763888888889,w=0.14498437499999994,h=0.07745833333333335)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3471.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.8826171875000001,y=0.16386805555555553,w=0.054468749999999844,h=0.36954166666666666)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13144.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.49965624999999997,y=0.5041041666666667,w=1.0,h=0.6137916666666666)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3493.txt",
+      "errors": [
+        "line 5: bbox extends outside image (x=0.74173828125,y=0.26102083333333337,w=0.07807031249999996,h=0.660013888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3485.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.74323828125,y=0.17754861111111112,w=0.09177343750000003,h=0.6092638888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11428.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.10562109375,y=0.16983333333333334,w=0.22821093750000002,h=0.060027777777777756)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13238.txt",
+      "errors": [
+        "line 10: bbox extends outside image (x=0.89841796875,y=0.18983333333333335,w=0.28861718750000004,h=0.10644444444444445)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3656.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.46668750000000003,y=0.9255069444444445,w=0.038124999999999964,h=0.17504166666666662)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13244.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.17624609375,y=0.18702777777777782,w=0.05746093750000001,h=0.7270555555555556)",
+        "line 8: bbox extends outside image (x=0.6013281250000001,y=0.24234722222222224,w=0.05717187499999996,h=0.9142777777777777)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12558.txt",
+      "errors": [
+        "line 5: bbox extends outside image (x=0.12685156250000001,y=0.16675,w=0.25928125,h=0.047777777777777766)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3496.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.7498984375000002,y=0.3418333333333334,w=0.10979687500000007,h=0.6924722222222223)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12773.txt",
+      "errors": [
+        "line 12: bbox extends outside image (x=0.7062070312500001,y=0.07614583333333334,w=0.6030546875000001,h=0.06370833333333334)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12557.txt",
+      "errors": [
+        "line 6: bbox extends outside image (x=0.12400390625,y=0.16746527777777775,w=0.25913281250000003,h=0.06890277777777779)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11426.txt",
+      "errors": [
+        "line 12: bbox extends outside image (x=0.10227343750000002,y=0.1694652777777778,w=0.23329687500000001,h=0.07934722222222224)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3491.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.75584375,y=0.28525694444444444,w=0.07298437500000006,h=0.7571527777777778)",
+        "line 5: bbox extends outside image (x=0.8533320312499999,y=0.8158472222222222,w=0.0631796875000001,h=0.3892222222222222)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13241.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.32108593750000003,y=0.21963888888888888,w=0.055781249999999984,h=0.8485555555555556)",
+        "line 5: bbox extends outside image (x=0.7305585937500001,y=0.24962500000000004,w=0.05036718750000002,h=0.8180277777777778)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12877.txt",
+      "errors": [
+        "line 5: bbox extends outside image (x=0.35151953125,y=0.014145833333333331,w=0.38891406250000005,h=0.05584722222222223)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13234.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.8028007812500001,y=0.2897986111111111,w=0.4622109375000001,h=0.09368055555555554)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei3659.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.48573437500000005,y=0.9538541666666667,w=0.02653125000000003,h=0.16904166666666673)",
+        "line 2: bbox extends outside image (x=0.54851171875,y=0.9415138888888889,w=0.03214843749999998,h=0.15688888888888894)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13076.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.49947656249999994,y=0.2603888888888889,w=1.0,h=0.15191666666666667)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13242.txt",
+      "errors": [
+        "line 11: bbox extends outside image (x=0.22505078125,y=0.21535416666666668,w=0.4896015625,h=0.09245833333333335)",
+        "line 12: bbox extends outside image (x=0.6675,y=0.26446527777777773,w=0.05445312500000004,h=0.8729861111111111)"
+      ],
+      "error_count": 2
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12758.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.7755820312500001,y=0.07313194444444444,w=0.45299218750000003,h=0.05434722222222222)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11434.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.1273984375,y=0.14727777777777779,w=0.307109375,h=0.04572222222222223)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12874.txt",
+      "errors": [
+        "line 2: bbox extends outside image (x=0.329171875,y=0.005631944444444445,w=0.36792187499999995,h=0.06801388888888889)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13237.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.9071484375000001,y=0.16421527777777778,w=0.22740625000000003,h=0.11765277777777779)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei12868.txt",
+      "errors": [
+        "line 11: bbox extends outside image (x=0.3424843750000001,y=0.00940972222222222,w=0.4221718750000001,h=0.07068055555555557)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei13050.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.34861328125,y=0.21061111111111114,w=0.6974296875000001,h=0.09072222222222223)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/train/labels/mbdd_Hefei11438.txt",
+      "errors": [
+        "line 4: bbox extends outside image (x=0.1383828125,y=0.13718055555555558,w=0.315265625,h=0.06494444444444446)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei11425.txt",
+      "errors": [
+        "line 7: bbox extends outside image (x=0.0992578125,y=0.17972222222222223,w=0.2075625,h=0.05111111111111113)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei12556.txt",
+      "errors": [
+        "line 9: bbox extends outside image (x=0.12428515624999999,y=0.16663194444444446,w=0.2542890625,h=0.055236111111111125)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei11475.txt",
+      "errors": [
+        "line 9: bbox extends outside image (x=0.8669023437500001,y=0.17502777777777778,w=0.33055468750000006,h=0.07938888888888888)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei11430.txt",
+      "errors": [
+        "line 8: bbox extends outside image (x=0.116046875,y=0.15938194444444445,w=0.29954687500000005,h=0.07262500000000001)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei3661.txt",
+      "errors": [
+        "line 1: bbox extends outside image (x=0.4932890625,y=0.9614930555555555,w=0.02792187500000001,h=0.1920694444444444)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei12869.txt",
+      "errors": [
+        "line 5: bbox extends outside image (x=0.343984375,y=0.010506944444444442,w=0.4094062500000001,h=0.06476388888888888)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei3488.txt",
+      "errors": [
+        "line 3: bbox extends outside image (x=0.7522070312500001,y=0.2328611111111111,w=0.08547656249999998,h=0.7077777777777777)"
+      ],
+      "error_count": 1
+    },
+    {
+      "path": "/home/shalini/building-defect-detection/dataset_old/val/labels/mbdd_Hefei11421.txt",
+      "errors": [
+        "line 12: bbox extends outside image (x=0.08125390625000001,y=0.198375,w=0.19213281250000003,h=0.04302777777777776)"
+      ],
+      "error_count": 1
+    }
+  ],
+  "bad_label_file_total": 92,
+  "class_distribution": {
+    "train": {
+      "0": 15615,
+      "1": 5580,
+      "2": 18643,
+      "3": 7379,
+      "5": 415
+    },
+    "val": {
+      "0": 1781,
+      "1": 738,
+      "2": 2157,
+      "3": 965,
+      "5": 52
+    }
+  }
+}

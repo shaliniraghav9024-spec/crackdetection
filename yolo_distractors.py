@@ -47,6 +47,14 @@ _DISTRACTOR_NAMES: set[str] = {
     "keyboard", "mouse", "person", "stop sign",
     # Round things that often appear on inspection-room walls:
     "frisbee", "sports ball",
+    # Inspector-worn / inspector-carried items that frequently appear
+    # in inspection footage and get mis-detected as wall defects:
+    #   tie       -> dark vertical strip, looks like a crack edge
+    #   handbag   -> rectangular bag near the inspector
+    #   backpack  -> dark rectangle behind the inspector
+    #   suitcase  -> rectangular object in motion
+    #   bottle    -> tall rectangle, sometimes mis-read as peeling
+    "tie", "handbag", "backpack", "suitcase", "bottle",
 }
 
 _lock = threading.Lock()

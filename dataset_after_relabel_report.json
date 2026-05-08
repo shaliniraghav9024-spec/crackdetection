@@ -1,0 +1,82 @@
+{
+  "root": "/home/shalini/building-defect-detection/dataset",
+  "num_classes": 6,
+  "splits": {
+    "train": {
+      "image_count": 115700,
+      "label_count": 115700,
+      "missing_labels": [],
+      "missing_labels_total": 0,
+      "orphan_labels": [],
+      "orphan_labels_total": 0
+    },
+    "val": {
+      "image_count": 1789,
+      "label_count": 1789,
+      "missing_labels": [],
+      "missing_labels_total": 0,
+      "orphan_labels": [],
+      "orphan_labels_total": 0
+    }
+  },
+  "duplicates": [],
+  "summary": {
+    "splits": {
+      "train": 115700,
+      "val": 1789
+    },
+    "duplicate_redundant_images": 0,
+    "decode_errors": 0,
+    "read_errors": 0,
+    "missing_labels": 0,
+    "orphan_labels": 0,
+    "bad_label_files": 0,
+    "empty_label_files": 101921,
+    "total_annotation_rows": 53422,
+    "class_distribution": {
+      "train": {
+        "0": 415,
+        "1": 1268,
+        "2": 14400,
+        "3": 18671,
+        "4": 7383,
+        "5": 5584
+      },
+      "val": {
+        "0": 52,
+        "1": 133,
+        "2": 1656,
+        "3": 2157,
+        "4": 965,
+        "5": 738
+      }
+    }
+  },
+  "duplicate_image_count": 0,
+  "decode_errors": [],
+  "decode_error_total": 0,
+  "read_errors": [],
+  "read_error_total": 0,
+  "total_label_rows": 53422,
+  "empty_label_files": 101921,
+  "bad_label_files": [],
+  "bad_label_file_total": 0,
+  "class_distribution": {
+    "train": {
+      "0": 415,
+      "1": 1268,
+      "2": 14400,
+      "3": 18671,
+      "4": 7383,
+      "5": 5584
+    },
+    "val": {
+      "0": 52,
+      "1": 133,
+      "2": 1656,
+      "3": 2157,
+      "4": 965,
+      "5": 738
+    }
+  }
+}

@@ -117,6 +117,74 @@ AUX_MODELS: list[tuple[str, dict[str, str | None], float]] = [
 ]
 
 
+# Auxiliary models auto-downloaded from HuggingFace Hub on first use.
+# These are stronger (yolov8m vs the local yolov8n entries above) and
+# trained on substantially more real-world inspection imagery, so they
+# carry most of the actual detection accuracy on a project whose
+# in-house weights are weak.
+#
+# Each entry: (local_dest, repo_id, weights_filename, class_remap, conf_offset)
+#   * local_dest  -- where the .pt is cached after download
+#   * repo_id     -- HuggingFace repo (user/name)
+#   * weights_filename -- file inside the repo (almost always "best.pt")
+#   * class_remap -- maps the model's class labels to our 8-class schema
+#                    (case-insensitive lookup; ``None`` means drop)
+#   * conf_offset -- additive bias on the confidence (set negative to
+#                    down-weight a noisy model in the ensemble)
+#
+# A failure to download (no network, repo gated, etc.) is silently
+# skipped -- the rest of the pipeline still runs on whatever is on disk.
+AUX_MODELS_HF: list[tuple[str, str, str, dict[str, str | None], float]] = [
+    # YOLOv8m pothole segmentation; mAP@0.5(box)=0.858 on the
+    # keremberke/pothole dataset.  Pothole-shaped voids in concrete
+    # are visually similar to wall holes, so we remap to ``hole``.
+    # This was the bottleneck class in the existing ensemble: the two
+    # local aux models below only vote on cracks, leaving ``hole``
+    # detections solely to the (weak) in-house model. This adds a
+    # strong yolov8m vote for the hole class.
+    ("models/keremberke_pothole_m/best.pt",
+     "keremberke/yolov8m-pothole-segmentation", "best.pt",
+     {"pothole": "hole", "Pothole": "hole"},
+     -0.05),
+    # NOTE: a public, non-gated YOLOv8m crack model on HuggingFace Hub
+    # would be the logical second addition, but as of writing the only
+    # candidates either don't exist (e.g. keremberke/yolov8m-crack-
+    # segmentation -> 404) or are gated and require auth (e.g.
+    # cazzz307/yolov8-crack-detection). The two local crack models
+    # in ``AUX_MODELS`` (levanell + opensistemas) cover this ground.
+]
+
+
+def _ensure_hf_aux_downloaded(local_dest: str, repo_id: str,
+                              filename: str) -> str | None:
+    """Download an auxiliary YOLO checkpoint from HuggingFace Hub.
+
+    Returns the local path on success, or ``None`` if the download fails
+    (no network, missing huggingface_hub, gated repo, etc.).  Idempotent:
+    if ``local_dest`` already exists it is returned without re-downloading.
+    """
+    dest = Path(local_dest)
+    if dest.exists() and dest.stat().st_size > 0:
+        return str(dest.resolve())
+    try:
+        from huggingface_hub import hf_hub_download
+    except Exception:  # noqa: BLE001
+        return None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cached = hf_hub_download(repo_id=repo_id, filename=filename)
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        # Copy out of the HF cache into our project tree so subsequent
+        # loads don't depend on the cache layout.
+        import shutil
+        shutil.copyfile(cached, dest)
+    except Exception:  # noqa: BLE001
+        return cached  # still usable, just not under our project tree
+    return str(dest.resolve())
+
+
 # ----------------------------------------------------------- dataclasses
 @dataclass
 class VoiceHint:
@@ -189,15 +257,34 @@ _MODEL_CACHE: dict[str, object] = {}
 
 
 def _resolve_default_weights() -> str:
-    """Pick the most recent fine-tuned weights, else yolov8n.pt."""
-    candidates = sorted(
-        Path("runs/detect").glob("*/weights/best.pt"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if candidates:
-        return str(candidates[0])
-    return FALLBACK_WEIGHTS_PATH
+    """Pick the best fine-tuned weights found in runs/detect.
+
+    Ranks runs by (epochs_completed × imgsz) as a proxy for model quality.
+    Falls back to yolov8m.pt when no trained run exists.
+    """
+    candidates = list(Path("runs/detect").glob("*/weights/best.pt"))
+    if not candidates:
+        return FALLBACK_WEIGHTS_PATH
+
+    def _quality_key(p: Path) -> tuple:
+        args_yaml = p.parent.parent / "args.yaml"
+        epochs = 0
+        imgsz = 0
+        if args_yaml.exists():
+            try:
+                import yaml
+                with args_yaml.open() as f:
+                    cfg = yaml.safe_load(f)
+                epochs = int(cfg.get("epochs", 0))
+                imgsz  = int(cfg.get("imgsz",  0))
+            except Exception:  # noqa: BLE001
+                pass
+        # Primary sort: epochs × imgsz (bigger = better trained)
+        # Secondary: file mtime (most recent wins ties)
+        return (epochs * imgsz, p.stat().st_mtime)
+
+    candidates.sort(key=_quality_key, reverse=True)
+    return str(candidates[0])
 
 
 @dataclass
@@ -207,6 +294,11 @@ class _Member:
     model: object
     remap: dict[str, str | None]
     conf_offset: float
+    # Test-time augmentation is only implemented for the ``detect`` task
+    # in Ultralytics; segmentation/classification predict pipelines warn
+    # and silently fall back. Tracking this per-member lets us request
+    # TTA only where it actually runs and keeps the logs clean.
+    supports_augment: bool = False
 
 
 def _load_ultralytics_model(path: str):
@@ -214,13 +306,27 @@ def _load_ultralytics_model(path: str):
     return YOLO(path)
 
 
-def _build_aux_members() -> list[_Member]:
-    """Load any auxiliary pretrained models that exist on disk.
+def _model_supports_augment(m) -> bool:
+    """Return True if the loaded YOLO model supports ``augment=True``.
 
-    Silently skipped if a weights file is missing; this lets the rest
-    of the project work even when the downloads haven't been done.
+    Ultralytics only implements TTA in the detect task. Segmentation,
+    classification, pose, and OBB tasks emit a runtime warning and run
+    a single forward pass anyway, so we strip the flag for those.
+    """
+    task = getattr(m, "task", None)
+    return task == "detect"
+
+
+def _build_aux_members() -> list[_Member]:
+    """Load any auxiliary pretrained models that exist on disk plus any
+    HuggingFace-Hub models that download successfully.
+
+    Silently skipped if a weights file is missing or a download fails;
+    the rest of the pipeline still runs on whatever is available.
     """
     members: list[_Member] = []
+
+    # 1. Local-only auxiliary models (no auto-download).
     for w_rel, remap, off in AUX_MODELS:
         w = Path(w_rel)
         if not w.exists():
@@ -229,8 +335,57 @@ def _build_aux_members() -> list[_Member]:
             m = _load_ultralytics_model(str(w.resolve()))
         except Exception:  # noqa: BLE001
             continue
-        members.append(_Member(name=w.name, model=m, remap=remap, conf_offset=off))
+        members.append(_Member(
+            name=w.name, model=m, remap=remap, conf_offset=off,
+            supports_augment=_model_supports_augment(m),
+        ))
+
+    # 2. HuggingFace-Hub auxiliary models -- download if missing.
+    for local_dest, repo_id, filename, remap, off in AUX_MODELS_HF:
+        path = _ensure_hf_aux_downloaded(local_dest, repo_id, filename)
+        if path is None:
+            continue
+        try:
+            m = _load_ultralytics_model(path)
+        except Exception:  # noqa: BLE001
+            continue
+        # Make remap case-insensitive: many HF crack models export
+        # "Crack" while ours uses lower-case keys.  Build a lower-cased
+        # lookup wrapper so either casing maps correctly.
+        ci_remap = {k.lower(): v for k, v in remap.items()}
+        members.append(_Member(
+            name=Path(path).name,
+            model=m,
+            remap=_CaseInsensitiveRemap(ci_remap, original=remap),
+            conf_offset=off,
+            supports_augment=_model_supports_augment(m),
+        ))
+
     return members
+
+
+class _CaseInsensitiveRemap(dict):
+    """Dict that accepts case-insensitive lookups.
+
+    The rest of the pipeline does ``if raw_label in member.remap`` and
+    ``member.remap[raw_label]``, so we override both to lower-case the
+    key. We subclass ``dict`` for ``isinstance(dict)`` compatibility but
+    route ``__contains__`` and ``__getitem__`` through a lower-case
+    backing store.
+    """
+    def __init__(self, lower_map: dict[str, str | None], original: dict):
+        super().__init__(original)
+        self._lower = dict(lower_map)
+
+    def __contains__(self, key) -> bool:  # type: ignore[override]
+        if isinstance(key, str):
+            return key.lower() in self._lower or super().__contains__(key)
+        return super().__contains__(key)
+
+    def __getitem__(self, key):  # type: ignore[override]
+        if isinstance(key, str) and key.lower() in self._lower:
+            return self._lower[key.lower()]
+        return super().__getitem__(key)
 
 
 def get_model(weights_path: str | Path | None = None) -> list[_Member]:
@@ -259,18 +414,40 @@ def get_model(weights_path: str | Path | None = None) -> list[_Member]:
             f"explicit weights path."
         )
 
+    _primary_model = _load_ultralytics_model(weights_path)
     primary = _Member(
         name=Path(weights_path).name,
-        model=_load_ultralytics_model(weights_path),
+        model=_primary_model,
         # Primary model's class names already match our 8-class schema;
         # explicitly map only "crack" (some user-trained variants emit
         # generic "crack") and drop "normal".
         remap={"normal": None, "crack": "minor_crack"},
         conf_offset=0.0,
+        supports_augment=_model_supports_augment(_primary_model),
     )
     members = [primary] + _build_aux_members()
     _MODEL_CACHE[cache_key] = members  # type: ignore[assignment]
     return members
+
+
+def _resolve_model_imgsz(weights_path: str | Path, default: int = 640) -> int:
+    """Return the imgsz the model was trained at (from args.yaml), or default.
+
+    Running inference at a different resolution from training can hurt mAP
+    significantly (especially for tiny models trained at 320 px).
+    """
+    try:
+        args_yaml = Path(weights_path).parent.parent / "args.yaml"
+        if args_yaml.exists():
+            import yaml
+            with args_yaml.open() as f:
+                cfg = yaml.safe_load(f)
+            v = int(cfg.get("imgsz", 0))
+            if v >= 320:
+                return v
+    except Exception:  # noqa: BLE001
+        pass
+    return default
 
 
 # ----------------------------------------------------------- annotation
@@ -609,20 +786,84 @@ def _per_class_nms(detections: list[Detection],
     return kept
 
 
+def _consolidate_overlapping_boxes(
+    detections: list[Detection],
+    iou_thresh: float = 0.30,
+    containment_thresh: float = 0.55,
+) -> list[Detection]:
+    """Per-class consolidation that survives nested boxes.
+
+    Standard NMS only fires when two boxes have high IoU. Cracks (and
+    sometimes holes / spalling) end up with one big covering box plus
+    several smaller boxes wholly inside it: their IoU with the big box
+    is low (the big box is mostly empty), so NMS keeps both -- producing
+    the "5 boxes for one crack" stack the user sees.
+
+    This pass adds a second predicate: if at least ``containment_thresh``
+    of the *smaller* box's area sits inside the *larger* box, treat them
+    as duplicates and keep the higher-confidence one.
+
+    Sorted highest-conf first so we keep the most reliable detection
+    in each cluster.
+    """
+    if not detections:
+        return []
+    by_label: dict[str, list[Detection]] = {}
+    for d in detections:
+        by_label.setdefault(d.label, []).append(d)
+
+    kept: list[Detection] = []
+    for _, group in by_label.items():
+        group.sort(key=lambda d: d.confidence, reverse=True)
+        survivors: list[Detection] = []
+        for d in group:
+            ax1, ay1, ax2, ay2 = d.bbox
+            a_area = max(1, (ax2 - ax1) * (ay2 - ay1))
+            duplicate = False
+            for s in survivors:
+                if _bbox_iou(d.bbox, s.bbox) >= iou_thresh:
+                    duplicate = True
+                    break
+                bx1, by1, bx2, by2 = s.bbox
+                b_area = max(1, (bx2 - bx1) * (by2 - by1))
+                iw = max(0, min(ax2, bx2) - max(ax1, bx1))
+                ih = max(0, min(ay2, by2) - max(ay1, by1))
+                inter = iw * ih
+                if inter > 0 and inter / min(a_area, b_area) >= containment_thresh:
+                    duplicate = True
+                    break
+            if not duplicate:
+                survivors.append(d)
+        kept.extend(survivors)
+    return kept
+
+
 def _predict_one(member: "_Member", frame_bgr: np.ndarray,
                  conf: float, iou: float, imgsz: int) -> list[Detection]:
-    """Run a single member of the ensemble; apply its class remap."""
+    """Run a single member of the ensemble; apply its class remap.
+
+    ``augment=True`` enables Ultralytics' built-in test-time augmentation
+    (horizontal flip + 3-scale pyramid). On a weakly-trained / low-res
+    model this typically lifts mAP by 2-3 points at the cost of ~2x
+    inference time per frame -- worth it for the accuracy axis here.
+    """
     if frame_bgr is None or frame_bgr.size == 0:
         return []
     # Use a slightly lowered conf at the model itself so its NMS keeps
     # candidates we may still want to filter out by class remap; we
     # re-apply the user-facing ``conf`` after remapping.
     raw_conf = max(0.05, conf - max(0.0, -member.conf_offset))
+    predict_kwargs = dict(
+        source=frame_bgr, conf=raw_conf, iou=iou, imgsz=imgsz,
+        verbose=False, save=False,
+    )
+    # Only request TTA from members whose task supports it (detect).
+    # Segmentation/classification models would warn and silently fall
+    # back to single-scale, polluting the logs.
+    if member.supports_augment:
+        predict_kwargs["augment"] = True
     try:
-        res = member.model.predict(
-            source=frame_bgr, conf=raw_conf, iou=iou, imgsz=imgsz,
-            verbose=False, save=False,
-        )
+        res = member.model.predict(**predict_kwargs)
     except Exception:  # noqa: BLE001
         return []
     if not res:
@@ -681,10 +922,11 @@ def _predict_one(member: "_Member", frame_bgr: np.ndarray,
 # --------------------------------------------------------------------- #
 
 # Strict mode: a defect box is dropped if ``DISTRACTOR_OVERLAP_THRESH``
-# fraction of it sits inside a known distractor box.  0.30 means "if
-# 30%+ of the defect box overlaps a clock, treat it as a clock-edge
-# false positive".
-DISTRACTOR_OVERLAP_THRESH: float = 0.30
+# fraction of it sits inside a known distractor box.  0.50 means "if
+# 50%+ of the defect box overlaps a clock, treat it as a clock-edge
+# false positive".  We use 0.50 (not 0.30) to avoid suppressing real
+# defects that merely appear near a distractor object in the same frame.
+DISTRACTOR_OVERLAP_THRESH: float = 0.50
 # Master toggles, flipped by Streamlit / tests at runtime.
 ARTIFICIAL_FILTER_ENABLED: bool = True
 CLIP_VERIFIER_ENABLED: bool = True
@@ -756,9 +998,14 @@ def _drop_distractor_overlapping(
 def _clip_filter_detections(
     detections: list[Detection],
     frame_bgr: np.ndarray,
-    margin: float = 0.02,
+    margin: float = -0.05,
 ) -> list[Detection]:
     """Drop boxes where CLIP thinks the patch is a distractor not a defect.
+
+    margin=-0.05 means we keep the box unless the distractor score beats
+    the defect score by more than 5 points -- permissive enough for a
+    weakly-trained model while still catching obvious false positives
+    (clocks, signs, etc. that score much higher as distractors).
 
     Skipped silently when ``open_clip`` isn't installed.
     """
@@ -810,11 +1057,265 @@ def _yolo_predict(members, frame_bgr: np.ndarray,
     # Cross-model NMS so two models marking the same crack don't
     # produce two boxes on the keyframe.
     merged = _per_class_nms(all_dets, iou_thresh=max(iou, 0.45))
+    # Containment dedup: drop boxes that are mostly inside a higher-
+    # confidence box of the same class. Catches the "5 boxes stacked
+    # on one crack" pattern that low-IoU NMS misses (a small box
+    # inside a big enclosing box has low IoU because the big box is
+    # mostly empty).
+    merged = _consolidate_overlapping_boxes(merged)
     # Stage 1: drop boxes overlapping known distractor objects.
     merged, _distractors = _drop_distractor_overlapping(merged, frame_bgr)
     # Stage 2: zero-shot CLIP verification on survivors.
     merged = _clip_filter_detections(merged, frame_bgr)
+    # Stage 3: reclassify "hole" boxes that look like paint chips.
+    merged = _reclassify_paint_chip_holes(merged, frame_bgr)
+    # Stage 4: drop "hole" boxes whose shape / location are implausible
+    # for a real wall hole (elongated boxes, edge-of-frame artefacts).
+    merged = _drop_implausible_holes(merged, frame_bgr)
+    # Stage 5: drop "crack" boxes that sit on a wall-corner / paint-line
+    # boundary (different surface colour on either side) rather than
+    # within a single wall surface.
+    merged = _drop_wall_boundary_cracks(merged, frame_bgr)
     return merged
+
+
+# Crack detections that sit on a *boundary* between two surfaces
+# (wall corner, paint-line transition, doorframe edge) are typically
+# the model mis-reading the high-contrast architectural edge as a
+# crack. A real crack has roughly the SAME wall colour on both sides
+# of the box. We measure the L2 distance between the BGR means of the
+# two neighbouring strips and drop the detection above this threshold.
+_CRACK_BOUNDARY_DELTA: float = 35.0
+
+
+def _drop_wall_boundary_cracks(
+    detections: list[Detection],
+    frame_bgr: np.ndarray,
+) -> list[Detection]:
+    """Drop ``major_crack`` / ``minor_crack`` detections whose left/right
+    (or top/bottom for horizontal boxes) neighbouring wall colour
+    differs strongly. Real cracks have a single continuous wall on
+    both sides; wall corners and paint-line junctions don't.
+    """
+    if not detections or frame_bgr is None or frame_bgr.size == 0:
+        return detections
+    H, W = frame_bgr.shape[:2]
+    out: list[Detection] = []
+    for d in detections:
+        if d.label not in ("major_crack", "minor_crack"):
+            out.append(d)
+            continue
+        x1, y1, x2, y2 = d.bbox
+        bw = max(1, x2 - x1)
+        bh = max(1, y2 - y1)
+        # Use L2 distance between BGR means as a cheap "different
+        # surface" signal. We sample neighbour strips perpendicular
+        # to the box's dominant axis.
+        if bh > bw:  # vertical-ish: compare LEFT vs RIGHT
+            margin = max(8, bw)
+            lx1 = max(0, x1 - margin); lx2 = x1
+            rx1 = x2; rx2 = min(W, x2 + margin)
+            if lx2 <= lx1 or rx2 <= rx1:
+                out.append(d); continue
+            a = frame_bgr[y1:y2, lx1:lx2]
+            b = frame_bgr[y1:y2, rx1:rx2]
+        else:        # horizontal-ish: compare TOP vs BOTTOM
+            margin = max(8, bh)
+            ty1 = max(0, y1 - margin); ty2 = y1
+            by1 = y2; by2 = min(H, y2 + margin)
+            if ty2 <= ty1 or by2 <= by1:
+                out.append(d); continue
+            a = frame_bgr[ty1:ty2, x1:x2]
+            b = frame_bgr[by1:by2, x1:x2]
+        if a.size == 0 or b.size == 0:
+            out.append(d); continue
+        a_mean = np.array([float(a[..., c].mean()) for c in range(3)])
+        b_mean = np.array([float(b[..., c].mean()) for c in range(3)])
+        delta = float(np.linalg.norm(a_mean - b_mean))
+        if delta > _CRACK_BOUNDARY_DELTA:
+            continue  # boundary, not a crack
+        out.append(d)
+    return out
+
+
+# Aspect-ratio band for a plausible wall hole. Real holes are roughly
+# round; values far from 1.0 are typically wall seams, baseboards,
+# door frames, or vertical paint streaks the model mis-labels.
+_HOLE_AR_MIN: float = 0.35
+_HOLE_AR_MAX: float = 2.80
+# Pixel margin from the frame border. Boxes that hug an edge are very
+# often vignette / lens / wall-corner artefacts rather than real defects.
+_HOLE_EDGE_MARGIN_PX: int = 15
+# Continuous-dark-strip check: how far above/below to sample (multiples
+# of box height) and how close those means must be to the inside mean
+# (in 0-255 brightness units) to count as "the dark colour continues".
+_HOLE_STRIP_MARGIN_FACTOR: float = 2.5
+_HOLE_STRIP_BRIGHTNESS_TOLERANCE: float = 18.0
+
+
+def _is_on_continuous_dark_strip(
+    frame_bgr: np.ndarray,
+    bbox: tuple[int, int, int, int],
+) -> bool:
+    """True iff the box's dark interior continues as a similarly dark
+    column directly above AND below it.
+
+    A real wall hole is an *isolated* dark spot: the wall just above
+    and below it is much brighter (paint), so the means differ
+    sharply. A doorframe / wall trim / baseboard is a long dark strip:
+    the means above and below match the inside. We use that to filter
+    the seam-on-trim false positives.
+    """
+    H, W = frame_bgr.shape[:2]
+    x1, y1, x2, y2 = bbox
+    bh = max(1, y2 - y1)
+    margin = max(8, int(_HOLE_STRIP_MARGIN_FACTOR * bh))
+
+    inside = frame_bgr[y1:y2, x1:x2]
+    if inside.size == 0:
+        return False
+    inside_v = float(inside.mean())
+
+    above_y1 = max(0, y1 - margin)
+    above_y2 = y1
+    below_y1 = y2
+    below_y2 = min(H, y2 + margin)
+    if above_y2 <= above_y1 or below_y2 <= below_y1:
+        return False
+    above = frame_bgr[above_y1:above_y2, x1:x2]
+    below = frame_bgr[below_y1:below_y2, x1:x2]
+    if above.size == 0 or below.size == 0:
+        return False
+
+    above_v = float(above.mean())
+    below_v = float(below.mean())
+
+    tol = _HOLE_STRIP_BRIGHTNESS_TOLERANCE
+    return (abs(above_v - inside_v) < tol
+            and abs(below_v - inside_v) < tol)
+
+
+def _drop_implausible_holes(
+    detections: list[Detection],
+    frame_bgr: np.ndarray,
+) -> list[Detection]:
+    """Drop ``hole`` detections that can't plausibly be wall holes.
+
+    Three cheap geometric / photometric checks:
+
+    1. **Aspect ratio** -- real holes are roughly round. If
+       ``width/height`` is outside ``[_HOLE_AR_MIN, _HOLE_AR_MAX]`` the
+       box is most likely a wall seam, baseboard line, door edge, or
+       a vertical paint streak the model mis-labelled as hole.
+    2. **Frame-border proximity** -- a box whose any side touches /
+       sits within ``_HOLE_EDGE_MARGIN_PX`` of the frame border is
+       almost always a lens or wall-corner artefact, not a defect.
+    3. **Continuous dark strip** -- if the box's dark interior continues
+       as a similarly-dark column directly above AND below it, the
+       box is part of a long vertical dark feature (doorframe, wall
+       trim, baseboard) rather than an isolated hole.
+
+    Other classes (cracks, peeling, etc.) pass through untouched -- they
+    are legitimately elongated, can run to the frame edge, and can lie
+    on long features without being false positives.
+    """
+    if not detections or frame_bgr is None or frame_bgr.size == 0:
+        return detections
+    H, W = frame_bgr.shape[:2]
+    out: list[Detection] = []
+    for d in detections:
+        if d.label != "hole":
+            out.append(d)
+            continue
+        x1, y1, x2, y2 = d.bbox
+        bw = max(1, x2 - x1)
+        bh = max(1, y2 - y1)
+        ar = bw / bh
+        if ar < _HOLE_AR_MIN or ar > _HOLE_AR_MAX:
+            continue
+        if (x1 <= _HOLE_EDGE_MARGIN_PX
+                or y1 <= _HOLE_EDGE_MARGIN_PX
+                or x2 >= W - _HOLE_EDGE_MARGIN_PX
+                or y2 >= H - _HOLE_EDGE_MARGIN_PX):
+            continue
+        if _is_on_continuous_dark_strip(frame_bgr, d.bbox):
+            continue
+        out.append(d)
+    return out
+
+
+def _reclassify_paint_chip_holes(
+    detections: list[Detection],
+    frame_bgr: np.ndarray,
+) -> list[Detection]:
+    """Relabel ``hole`` detections that look like paint chips as ``peeling``.
+
+    Heuristic exploits a property the YOLO model misses on weak training:
+    real wall holes are *darker* than the surrounding wall (light falls
+    into shadow) while paint chips are *brighter* (the underlying primer
+    or substrate is exposed) and often more colour-saturated than the
+    surrounding paint. So:
+
+      * if the box interior is significantly brighter than its
+        immediate surroundings, OR
+      * if the box interior has high colour saturation against a
+        low-saturation wall,
+
+    the detection is reclassified to ``peeling`` (paint defect) rather
+    than dropped, so the inspector still sees the finding -- just under
+    the right class.
+
+    Detections that are too small for a reliable contrast measurement
+    (< 8 px on a side) or near image edges are passed through unchanged.
+    """
+    if not detections or frame_bgr is None or frame_bgr.size == 0:
+        return detections
+
+    H, W = frame_bgr.shape[:2]
+    out: list[Detection] = []
+    for d in detections:
+        if d.label != "hole":
+            out.append(d)
+            continue
+        x1, y1, x2, y2 = d.bbox
+        bw, bh = x2 - x1, y2 - y1
+        if bw < 8 or bh < 8:
+            out.append(d)
+            continue
+
+        inside = frame_bgr[y1:y2, x1:x2]
+        if inside.size == 0:
+            out.append(d)
+            continue
+
+        # Ring around the box (twice the box span, clamped to frame).
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        rx1 = max(0, cx - bw); ry1 = max(0, cy - bh)
+        rx2 = min(W, cx + bw); ry2 = min(H, cy + bh)
+        ring = frame_bgr[ry1:ry2, rx1:rx2]
+        if ring.size == 0:
+            out.append(d)
+            continue
+
+        inside_v = float(inside.mean())
+        ring_v = float(ring.mean())
+        inside_hsv = cv2.cvtColor(inside, cv2.COLOR_BGR2HSV)
+        inside_s = float(inside_hsv[:, :, 1].mean())
+
+        # Thresholds tuned conservatively: a real hole has inside_v
+        # *below* ring_v (shadow). A paint chip exposing primer is
+        # typically >= +20 brighter and / or saturation >= 60/255.
+        is_bright = inside_v >= ring_v + 20.0
+        is_saturated = inside_s >= 60.0
+        if is_bright or is_saturated:
+            out.append(Detection(
+                label="peeling",
+                confidence=d.confidence,
+                bbox=d.bbox,
+            ))
+        else:
+            out.append(d)
+    return out
 
 
 def _frame_sharpness(frame_bgr: np.ndarray) -> float:
@@ -1192,7 +1693,7 @@ def _box_passes_clip_for_class(
     if not is_available():
         return True
     try:
-        r = verify_box(frame_bgr, bbox, margin=0.02)
+        r = verify_box(frame_bgr, bbox, margin=-0.05)
     except Exception:  # noqa: BLE001
         return True
     if r is None:
@@ -1558,6 +2059,10 @@ def analyze_image(
     H, W = img.shape[:2]
 
     model = get_model(weights_path)
+    # Auto-match inference resolution to training resolution
+    resolved_weights = weights_path or _resolve_default_weights()
+    if imgsz == 640:  # caller didn't override
+        imgsz = _resolve_model_imgsz(resolved_weights, default=640)
     grid = max(1, int(grid))
 
     # 1) Whole-image pass.
@@ -1742,6 +2247,13 @@ def analyze_video(
         keyframes_dir.mkdir(parents=True, exist_ok=True)
 
     model = get_model(weights_path)
+    # Auto-match inference resolution. Floor of 960 even when the model
+    # was trained at lower res -- Ultralytics handles upscaling, and
+    # multi-scale inference on small cracks/holes in inspection footage
+    # consistently beats matching the train-time resolution.
+    resolved_weights = weights_path or _resolve_default_weights()
+    if imgsz == 640:  # caller didn't override
+        imgsz = max(960, _resolve_model_imgsz(resolved_weights, default=960))
     voice_labels_by_time = [(h.time_sec, h.label) for h in (voice_hints or [])]
 
     frames: list[FramePrediction] = []
@@ -1950,4 +2462,437 @@ def analyze_video(
         keyframe_paths=keyframe_paths,
         unconfirmed_voice_mentions=voice_only_mentions,
         annotated_path=str(annotated_out) if annotated_out else None,
+    )
+
+
+# ---------------------------------------------------------------------
+# Mention-driven evidence pass (used by the real-time UI panel).
+#
+# Given a defect mention from defect_matcher.find_defect_mentions(), open
+# the source video, sample frames at SAMPLE_FPS within ±WINDOW_SECONDS of
+# the mention, run the YOLO ensemble on each, and return the highest-
+# confidence detection that matches the mentioned class -- with a red
+# bounding box and label drawn on the frame.
+#
+# This is the spec'd "evidence frame selection" step. It is intentionally
+# independent of analyze_video so the UI can stream results per mention
+# (frame-driven analyze_video still runs separately for the global view).
+# ---------------------------------------------------------------------
+
+@dataclass
+class EvidenceResult:
+    """One evidence frame found for a mention. ``found`` is False when
+    no detection of the target class survived in the search window."""
+    label: str
+    found: bool
+    time_sec: float                       # mention midpoint (for display)
+    matched_time_sec: float | None        # exact frame time of the best detection
+    confidence: float | None              # YOLO confidence on the kept box
+    bbox: tuple[int, int, int, int] | None
+    annotated_image_bgr: "np.ndarray | None"
+    nearest_frame_bgr: "np.ndarray | None"  # raw frame used for fallback display
+
+
+def _box_iou(a: tuple[int, int, int, int],
+             b: tuple[int, int, int, int]) -> float:
+    """Standard IoU between two xyxy boxes (image coords)."""
+    x1 = max(a[0], b[0]); y1 = max(a[1], b[1])
+    x2 = min(a[2], b[2]); y2 = min(a[3], b[3])
+    iw = max(0, x2 - x1); ih = max(0, y2 - y1)
+    inter = iw * ih
+    if inter == 0:
+        return 0.0
+    area_a = max(1, (a[2] - a[0]) * (a[3] - a[1]))
+    area_b = max(1, (b[2] - b[0]) * (b[3] - b[1]))
+    return inter / (area_a + area_b - inter)
+
+
+def _scene_match_fraction(dets_a: list[Detection],
+                          dets_b: list[Detection],
+                          iou_thr: float = 0.4) -> float:
+    """Fraction of boxes in the smaller-or-equal set that have a high-IoU
+    match in the other set. Used to decide whether two frames depict
+    the same physical defects (static-camera duplicates) or are
+    genuinely different scenes / instances."""
+    if not dets_a or not dets_b:
+        return 0.0
+    used: set[int] = set()
+    matched = 0
+    for a in dets_a:
+        for i, b in enumerate(dets_b):
+            if i in used:
+                continue
+            if _box_iou(a.bbox, b.bbox) >= iou_thr:
+                matched += 1
+                used.add(i)
+                break
+    return matched / max(len(dets_a), len(dets_b))
+
+
+def render_any_defect_frame_instances(
+    video_path: str | Path,
+    frames: list[FramePrediction],
+    *,
+    out_dir: str | Path,
+    dedup_seconds: float = 1.5,
+    scene_iou_threshold: float = 0.4,
+    scene_match_threshold: float = 0.5,
+    max_instances: int = 3,
+    keep_labels: set[str] | None = None,
+) -> list[dict]:
+    """One annotated full-frame image per unique frame that contains
+    *any* defect (across all classes), with all detections drawn on it.
+
+    Same dedup strategy as ``render_class_frame_instances`` (time bucket
+    + spatial-IoU scene match) but operating on the union of detections
+    across classes. Useful for the "each defect-containing frame is
+    shown below" flat list view in the Streamlit summary.
+
+    ``keep_labels`` -- if provided, only frames containing at least one
+    detection in this set are considered. Defaults to "anything that
+    isn't 'normal'" so background frames are still excluded.
+    """
+    video_path = Path(video_path).resolve()
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if keep_labels is None:
+        keep_labels = {c for c in CLASS_NAMES if c != "normal"}
+
+    candidates: list[dict] = []
+    for fp in frames:
+        dets = [d for d in (fp.detections or []) if d.label in keep_labels]
+        if not dets:
+            continue
+        candidates.append({
+            "time_sec": float(fp.time_sec),
+            "frame_idx": int(fp.frame_idx),
+            "detections": dets,
+            "num_boxes": len(dets),
+            "max_confidence": max(d.confidence for d in dets),
+            "labels": sorted({d.label for d in dets}),
+        })
+    if not candidates:
+        return []
+
+    # Time-bucket dedup.
+    candidates.sort(key=lambda c: c["time_sec"])
+    bucket_size = max(0.1, float(dedup_seconds))
+    keyed: dict[int, dict] = {}
+    for c in candidates:
+        key = int(c["time_sec"] // bucket_size)
+        prev = keyed.get(key)
+        if (prev is None
+                or c["num_boxes"] > prev["num_boxes"]
+                or (c["num_boxes"] == prev["num_boxes"]
+                    and c["max_confidence"] > prev["max_confidence"])):
+            keyed[key] = c
+    time_deduped = sorted(keyed.values(), key=lambda c: c["time_sec"])
+
+    # Spatial dedup across the box union.
+    deduped: list[dict] = []
+    for c in time_deduped:
+        merged_idx: int | None = None
+        for i, k in enumerate(deduped):
+            sim = _scene_match_fraction(
+                c["detections"], k["detections"],
+                iou_thr=scene_iou_threshold,
+            )
+            if sim >= scene_match_threshold:
+                merged_idx = i
+                break
+        if merged_idx is None:
+            deduped.append(c)
+            continue
+        existing = deduped[merged_idx]
+        replace = (
+            c["num_boxes"] > existing["num_boxes"]
+            or (c["num_boxes"] == existing["num_boxes"]
+                and c["max_confidence"] > existing["max_confidence"])
+        )
+        if replace:
+            deduped[merged_idx] = c
+
+    # Rank, cap, then chronological.
+    deduped.sort(key=lambda c: (-c["num_boxes"], -c["max_confidence"]))
+    deduped = deduped[:max_instances]
+    deduped.sort(key=lambda c: c["time_sec"])
+
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        return []
+
+    instances: list[dict] = []
+    try:
+        for c in deduped:
+            cap.set(cv2.CAP_PROP_POS_MSEC, c["time_sec"] * 1000.0)
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            stamp = (
+                f"frame {c['frame_idx']}  t={c['time_sec']:.1f}s  "
+                f"({c['num_boxes']} defect"
+                f"{'s' if c['num_boxes'] != 1 else ''})"
+            )
+            annotated = _draw_detections(
+                frame, c["detections"], timestamp_text=stamp,
+            )
+            stem = f"any_inst_t{c['time_sec']:.2f}.jpg"
+            out_path = out_dir / stem
+            cv2.imwrite(str(out_path), annotated)
+            instances.append({
+                "image_path": str(out_path),
+                "time_sec": c["time_sec"],
+                "frame_idx": c["frame_idx"],
+                "num_boxes": c["num_boxes"],
+                "max_confidence": float(c["max_confidence"]),
+                "labels": c["labels"],
+            })
+    finally:
+        cap.release()
+
+    return instances
+
+
+def render_class_frame_instances(
+    video_path: str | Path,
+    frames: list[FramePrediction],
+    *,
+    target_class: str,
+    out_dir: str | Path,
+    dedup_seconds: float = 1.5,
+    scene_iou_threshold: float = 0.4,
+    scene_match_threshold: float = 0.5,
+    max_instances: int = 12,
+) -> list[dict]:
+    """For one defect class, return one annotated *full-frame* image per
+    distinct moment-and-scene the class was detected.
+
+    Two layers of deduplication run in order so the user sees one card
+    per genuinely-distinct event:
+
+      1. **Time bucket** -- adjacent samples within ``dedup_seconds``
+         collapse to the frame with the most boxes / highest confidence.
+         Catches the case where the analyzer sampled at 0.5 s stride
+         and the camera barely moved between samples.
+
+      2. **Spatial dedup** -- if a candidate's bounding boxes match
+         (>= ``scene_match_threshold`` of them, by IoU
+         >= ``scene_iou_threshold``) those of an already-kept frame,
+         the candidate is treated as the same physical scene and
+         merged. This is what catches the static-camera "same two
+         holes shown at t=1.0s, 2.0s, 3.0s" duplicates -- they have
+         the same boxes in image coordinates so we keep one card,
+         not three.
+
+    Returns a list of dicts:
+        {image_path, time_sec, frame_idx, num_boxes, max_confidence}
+    """
+    video_path = Path(video_path).resolve()
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Collect every sampled frame that has >=1 detection of the class.
+    candidates: list[dict] = []
+    for fp in frames:
+        dets = [d for d in (fp.detections or []) if d.label == target_class]
+        if not dets:
+            continue
+        candidates.append({
+            "time_sec": float(fp.time_sec),
+            "frame_idx": int(fp.frame_idx),
+            "detections": dets,
+            "num_boxes": len(dets),
+            "max_confidence": max(d.confidence for d in dets),
+        })
+    if not candidates:
+        return []
+
+    # 2. Time-bucket dedup: keep best per ``dedup_seconds`` window.
+    candidates.sort(key=lambda c: c["time_sec"])
+    bucket_size = max(0.1, float(dedup_seconds))
+    keyed: dict[int, dict] = {}
+    for c in candidates:
+        key = int(c["time_sec"] // bucket_size)
+        prev = keyed.get(key)
+        if (prev is None
+                or c["num_boxes"] > prev["num_boxes"]
+                or (c["num_boxes"] == prev["num_boxes"]
+                    and c["max_confidence"] > prev["max_confidence"])):
+            keyed[key] = c
+    time_deduped = list(keyed.values())
+    time_deduped.sort(key=lambda c: c["time_sec"])
+
+    # 3. Spatial dedup: merge frames whose box sets overlap heavily.
+    deduped: list[dict] = []
+    for c in time_deduped:
+        merged_idx: int | None = None
+        for i, k in enumerate(deduped):
+            sim = _scene_match_fraction(
+                c["detections"], k["detections"],
+                iou_thr=scene_iou_threshold,
+            )
+            if sim >= scene_match_threshold:
+                merged_idx = i
+                break
+        if merged_idx is None:
+            deduped.append(c)
+            continue
+        # Same scene: keep whichever frame has more evidence
+        # (more boxes; tie-break by max confidence).
+        existing = deduped[merged_idx]
+        replace = (
+            c["num_boxes"] > existing["num_boxes"]
+            or (c["num_boxes"] == existing["num_boxes"]
+                and c["max_confidence"] > existing["max_confidence"])
+        )
+        if replace:
+            deduped[merged_idx] = c
+
+    # 4. Cap and sort chronologically for the UI.
+    deduped.sort(key=lambda c: (-c["num_boxes"], -c["max_confidence"]))
+    deduped = deduped[:max_instances]
+    deduped.sort(key=lambda c: c["time_sec"])
+
+    # 3. Re-read each frame from the video and stamp all class-detections.
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        return []
+
+    instances: list[dict] = []
+    try:
+        for c in deduped:
+            cap.set(cv2.CAP_PROP_POS_MSEC, c["time_sec"] * 1000.0)
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            annotated = _draw_detections(
+                frame,
+                c["detections"],
+                timestamp_text=(
+                    f"frame {c['frame_idx']}  t={c['time_sec']:.1f}s  "
+                    f"({c['num_boxes']} {target_class})"
+                ),
+            )
+            stem = f"{target_class}_inst_t{c['time_sec']:.2f}.jpg"
+            out_path = out_dir / stem
+            cv2.imwrite(str(out_path), annotated)
+            instances.append({
+                "image_path": str(out_path),
+                "time_sec": c["time_sec"],
+                "frame_idx": c["frame_idx"],
+                "num_boxes": c["num_boxes"],
+                "max_confidence": float(c["max_confidence"]),
+            })
+    finally:
+        cap.release()
+
+    return instances
+
+
+def find_evidence_frame_around_time(
+    video_path: str | Path,
+    *,
+    target_class: str,
+    time_sec: float,
+    weights_path: str | Path | None = None,
+    window_seconds: float = 2.5,
+    sample_fps: int = 4,
+    conf_threshold: float = 0.25,
+    iou_threshold: float = 0.45,
+    imgsz: int = 960,
+) -> EvidenceResult:
+    """Return the highest-confidence detection of ``target_class`` in
+    a ±``window_seconds`` window around ``time_sec``.
+
+    Sampling at ``sample_fps`` (default 4) keeps the cost bounded
+    (~20 frames per mention at the default window).  TTA is enabled
+    for evidence selection because we only do a handful of frames per
+    mention -- the extra cost is amortised across the bigger accuracy
+    gain from multi-scale inference.
+    """
+    video_path = Path(video_path).resolve()
+    if not video_path.exists():
+        raise FileNotFoundError(video_path)
+
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    duration_sec = (cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0) / max(fps, 1e-6)
+    t_start = max(0.0, float(time_sec) - float(window_seconds))
+    t_end = min(duration_sec, float(time_sec) + float(window_seconds))
+    step_sec = 1.0 / max(int(sample_fps), 1)
+
+    members = get_model(weights_path)
+
+    best_det: Detection | None = None
+    best_frame: np.ndarray | None = None
+    best_time: float | None = None
+    nearest_frame: np.ndarray | None = None
+    nearest_dt: float = float("inf")
+
+    t = t_start
+    while t <= t_end + 1e-9:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            t += step_sec
+            continue
+
+        # Track the closest-to-mention frame as a fallback for the UI.
+        dt = abs(t - float(time_sec))
+        if dt < nearest_dt:
+            nearest_dt = dt
+            nearest_frame = frame.copy()
+
+        dets = _yolo_predict(
+            members, frame, conf=conf_threshold,
+            iou=iou_threshold, imgsz=imgsz,
+        )
+        for det in dets:
+            if det.label != target_class:
+                continue
+            if best_det is None or det.confidence > best_det.confidence:
+                best_det = det
+                best_frame = frame.copy()
+                best_time = t
+        t += step_sec
+
+    cap.release()
+
+    if best_det is None:
+        return EvidenceResult(
+            label=target_class, found=False,
+            time_sec=float(time_sec),
+            matched_time_sec=None, confidence=None, bbox=None,
+            annotated_image_bgr=None,
+            nearest_frame_bgr=nearest_frame,
+        )
+
+    # Draw a red box + label so the UI / PDF can use the image as-is.
+    annotated = best_frame.copy()
+    x1, y1, x2, y2 = best_det.bbox
+    red = (0, 0, 255)  # BGR
+    cv2.rectangle(annotated, (x1, y1), (x2, y2), red, 2)
+    label_text = f"{best_det.label} {best_det.confidence * 100:.0f}%"
+    (tw, th), _ = cv2.getTextSize(
+        label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2,
+    )
+    cv2.rectangle(
+        annotated, (x1, max(0, y1 - th - 8)), (x1 + tw + 8, y1), red, -1,
+    )
+    cv2.putText(
+        annotated, label_text, (x1 + 4, max(th + 2, y1 - 4)),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA,
+    )
+
+    return EvidenceResult(
+        label=target_class, found=True,
+        time_sec=float(time_sec),
+        matched_time_sec=best_time,
+        confidence=float(best_det.confidence),
+        bbox=tuple(int(v) for v in best_det.bbox),  # type: ignore[arg-type]
+        annotated_image_bgr=annotated,
+        nearest_frame_bgr=nearest_frame,
     )

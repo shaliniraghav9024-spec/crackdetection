@@ -1,17 +1,13 @@
 """
-Streamlit web app for building-defect inspection (image + video).
+Streamlit web app for building-defect inspection (video only).
 
-Workflow
---------
-* **Image mode** — upload a single photo. The detector runs on the full
-  frame plus a configurable NxN tile grid so multiple co-occurring
-  defects (crack + stain, etc.) inside one photo are surfaced.
-* **Video mode** — upload an inspection video. Frames are sampled every
-  ``N`` seconds and run through the YOLOv8 detector, with per-class
-  keyframes and an optional annotated MP4. ``ffmpeg`` extracts the
-  audio and Whisper transcribes any voice commentary into time-stamped
-  segments; each segment is scanned for defect-related keywords and
-  highlighted in the report.
+Upload an inspection video. Frames are sampled every ``N`` seconds and
+run through the YOLO detector (architecture chosen by whichever
+``best.pt`` is resolved on load), with per-class keyframes and an
+optional annotated MP4. ``ffmpeg`` extracts the audio and Whisper
+transcribes any voice commentary into time-stamped segments; each
+segment is scanned for defect-related keywords and highlighted in the
+report.
 
 Run with:
 
@@ -20,9 +16,11 @@ Run with:
 """
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
+import cv2
 import streamlit as st
 
 from defect_analyzer import (
@@ -30,11 +28,19 @@ from defect_analyzer import (
     CLASS_ALIASES,
     SEVERITY,
     VoiceHint,
-    analyze_image,
     analyze_video,
-    save_defect_crops,
+    find_evidence_frame_around_time,
+    render_any_defect_frame_instances,
 )
 from audio_transcriber import transcribe_video
+from defect_matcher import (
+    DefectMention,
+    SIMILARITY_THRESHOLD,
+    WINDOW_SECONDS,
+    SAMPLE_FPS,
+    DEDUP_BUCKET_SECONDS,
+    find_defect_mentions,
+)
 from report_generator import (
     render_pdf_report,
     match_transcript_to_defect,
@@ -112,7 +118,6 @@ st.markdown(
 
 WORK_DIR = Path("output/app_runs").resolve()
 WORK_DIR.mkdir(parents=True, exist_ok=True)
-IMAGE_EXTS = ["bmp", "jpg", "jpeg", "png", "webp"]
 VIDEO_EXTS = ["avi", "m4v", "mkv", "mov", "mp4", "webm"]
 
 
@@ -126,112 +131,66 @@ def _warm_model():
     return weights
 
 
-# ----------------------------------------------------------------- sidebar
-st.sidebar.title("⚙️ Settings")
+# --------------------------------------------------- auto-tuned defaults
+# All knobs are tuned automatically — no manual settings exposed in the UI.
+# The detector runs at low confidence to maximise recall, then a per-class
+# adaptive threshold (see _auto_threshold_filter below) suppresses noisy
+# detections based on the per-class confidence distribution observed in
+# this video.
+_AUTO_CONF_FLOOR    = 0.10   # initial recall pass (low = catch more)
+_AUTO_IOU           = 0.45   # standard NMS IoU
+_AUTO_FRAME_STRIDE  = 0.5    # sample one frame every 0.5s
+# faster-whisper + int8 makes "medium" cost about the same on CPU as
+# the old openai-whisper "small" did, with noticeably fewer mishearings
+# of Indian-English inspection vocabulary.  Set the WHISPER_SIZE env
+# var (e.g. ``WHISPER_SIZE=large-v3``) to override -- only worth it if
+# you have a GPU; large-v3 on CPU is ~10x slower than medium.
+_AUTO_WHISPER_SIZE  = os.environ.get("WHISPER_SIZE", "medium").strip() or "medium"
+_AUTO_WHISPER_LANG  = "en"   # forced English (most common for these inspections)
+_AUTO_SAVE_VIDEO    = False  # keyframes always saved; full annotated mp4 is slow
 
-mode = st.sidebar.radio(
-    "Input type", ["Video", "Image"], horizontal=True,
-    help="Video mode samples frames over time and adds Whisper voice "
-         "transcription; Image mode tiles a single photo to surface "
-         "multiple co-occurring defects.",
-)
-
-conf_threshold = st.sidebar.slider(
-    "Confidence threshold",
-    min_value=0.05, max_value=0.95, value=0.25, step=0.05,
-    help="YOLO box must score at least this to be kept. Lower = more "
-         "recall, more false positives.",
-)
-iou_threshold = st.sidebar.slider(
-    "NMS IoU threshold",
-    min_value=0.30, max_value=0.80, value=0.45, step=0.05,
-    help="Non-max suppression IoU cut-off. Higher = more overlapping "
-         "boxes survive.",
-)
-
-grid_size = st.sidebar.select_slider(
-    "Image tile grid (NxN)",
-    options=[1, 2, 3, 4],
-    value=3,
-    help="Image mode only. 3x3 is a good default for full-wall photos.",
-    disabled=(mode != "Image"),
-)
-
-every_n_seconds = st.sidebar.slider(
-    "Sample one frame every (seconds)",
-    min_value=0.1, max_value=3.0, value=0.5, step=0.1,
-    disabled=(mode != "Video"),
-)
-
-transcribe_audio = st.sidebar.checkbox(
-    "Transcribe voice commentary (Whisper)",
-    value=True,
-    disabled=(mode != "Video"),
-    help="Extracts the audio with ffmpeg and runs OpenAI Whisper.",
-)
-
-whisper_size = st.sidebar.selectbox(
-    "Whisper model size",
-    ["tiny", "base", "small", "medium", "large"],
-    index=3,   # default to "medium" -- much fewer mishearings than tiny
-    disabled=(mode != "Video"),
-    help="Larger = more accurate but slower and uses more RAM. "
-         "'medium' (~1.5 GB) drastically reduces homophone errors "
-         "(\"tent\" -> \"paint\", \"whole\" -> \"hole\") on inspection "
-         "audio.  'tiny' / 'base' are CPU-friendlier fallbacks.",
-)
-
-whisper_language = st.sidebar.selectbox(
-    "Voice commentary language",
-    ["English (forced)", "Auto-detect"],
-    index=0,
-    disabled=(mode != "Video"),
-    help="Whisper-medium / large sometimes misclassifies Indian-English "
-         "inspection audio as Hindi / Marathi.  Forcing English fixes "
-         "that.  Switch to auto-detect only if your commentary is in a "
-         "non-English language.",
-)
-_whisper_lang_arg = "en" if whisper_language.startswith("English") else None
-
-save_annotated_video = st.sidebar.checkbox(
-    "Save annotated video (slower)",
-    value=False,
-    disabled=(mode != "Video"),
-)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Artificial-thing filter**")
-
-filter_distractors = st.sidebar.checkbox(
-    "Suppress clocks / signs / watches / phones (YOLO-COCO mask)",
-    value=True,
-    help="Runs a stock COCO-trained YOLO to find common wall objects "
-         "(clock, tv, phone, person, book, stop sign…). Defect boxes "
-         "that overlap any of those are treated as false positives "
-         "and dropped. Disable only if your video contains no such "
-         "objects -- the detector will then assume every dark rim is "
-         "a defect.",
-)
-
-filter_clip = st.sidebar.checkbox(
-    "Zero-shot CLIP verifier",
-    value=True,
-    help="For each surviving defect box, OpenAI's CLIP compares it "
-         "against ‘a wall with a hole / crack / peeling paint’ vs "
-         "‘a clock / sign / watch / poster’. If a distractor prompt "
-         "wins, the box is dropped. Loads ~350 MB once on first use.",
-)
-
-# Apply toggles to the analyzer module-level flags.
+# False-positive suppression filters.
+#
+# 1. Artificial distractor mask: stock COCO YOLO finds clocks, books,
+#    cell phones, ties, handbags, etc., and any defect box that overlaps
+#    one >= 50% is dropped. Catches "wall clock detected as crack",
+#    "phone in inspector's hand detected as hole".
+# 2. CLIP zero-shot verifier: each surviving defect crop is scored
+#    against text prompts. The distractor prompts include "a photo of
+#    a wristwatch" and "printed text on a card", which is exactly what
+#    fixes the watch / ID-card false positives that were leaking
+#    through into the report.
+#
+# Both are enabled by default. They can hurt recall on a model that's
+# still being trained, so set DISABLE_FP_FILTERS=1 in the environment to
+# turn them off temporarily during a re-training cycle.
 from defect_analyzer import (
     set_artificial_filter_enabled, set_clip_verifier_enabled,
 )
-set_artificial_filter_enabled(filter_distractors)
-set_clip_verifier_enabled(filter_clip)
+_FP_FILTERS_ON = os.environ.get("DISABLE_FP_FILTERS", "").strip() not in ("1", "true", "yes")
+set_artificial_filter_enabled(_FP_FILTERS_ON)
+set_clip_verifier_enabled(_FP_FILTERS_ON)
 
+
+# ----------------------------------------------------------------- sidebar
+st.sidebar.title("⚙️ Inspector")
+st.sidebar.caption(
+    "Fully automatic — just upload a video. Confidence, NMS, frame "
+    "sampling, and audio settings are all tuned per-clip from the "
+    "detections themselves."
+)
+if _FP_FILTERS_ON:
+    st.sidebar.caption(
+        "🛡️ False-positive filters **ON** — clocks, watches, ID cards, "
+        "phones, books, ties, signs are suppressed."
+    )
+else:
+    st.sidebar.caption(
+        "⚠️ FP filters disabled (DISABLE_FP_FILTERS=1)."
+    )
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "**Detected defect classes**\n\n"
+    "**Defect classes**\n\n"
     + "\n".join(f"- `{c}` ({SEVERITY.get(c, '?')})"
                 for c in CLASS_NAMES if c != "normal"),
 )
@@ -240,8 +199,8 @@ st.sidebar.markdown(
 # ----------------------------------------------------------------- header
 st.title("🏗️ Building Defect Inspector")
 st.caption(
-    "YOLOv8 multi-defect detector with bounding boxes, voice-commentary "
-    "transcription (videos), and downloadable PDF / HTML / JSON reports."
+    "YOLO multi-defect video detector with bounding boxes, "
+    "voice-commentary transcription, and downloadable PDF / HTML / JSON reports."
 )
 
 with st.spinner("Loading YOLO model..."):
@@ -253,17 +212,47 @@ with st.spinner("Loading YOLO model..."):
     except Exception as e:  # noqa: BLE001
         st.error(f"Could not load model: {e}")
         st.stop()
-st.caption(f"Loaded weights: `{Path(weights_path).name}`")
+
+
+def _detect_arch_from_weights(p: Path) -> str:
+    """Best-effort architecture label from the weights file path or args.yaml.
+    Falls back to the file name if nothing else is known."""
+    name = p.name
+    args_yaml = p.parent.parent / "args.yaml"
+    base_model = ""
+    if args_yaml.exists():
+        try:
+            import yaml as _y
+            base_model = (_y.safe_load(args_yaml.read_text()) or {}).get("model", "") or ""
+        except Exception:
+            pass
+    probe = (base_model + " " + name).lower()
+    if "yolo11" in probe or "yolov11" in probe:
+        return "YOLO11"
+    if "yolov10" in probe or "yolo10" in probe:
+        return "YOLOv10"
+    if "yolov9" in probe or "yolo9" in probe:
+        return "YOLOv9"
+    if "yolov8" in probe or "yolo8" in probe:
+        return "YOLOv8"
+    if "yolov5" in probe or "yolo5" in probe:
+        return "YOLOv5"
+    return "YOLO"
+
+
+_ARCH_LABEL = _detect_arch_from_weights(Path(weights_path))
+st.caption(f"Loaded weights: `{Path(weights_path).name}` · architecture: **{_ARCH_LABEL}**")
+
 
 
 # ----------------------------------------------------------------- upload
 upload = st.file_uploader(
-    f"Upload an inspection {mode.lower()}",
-    type=(IMAGE_EXTS if mode == "Image" else VIDEO_EXTS),
+    "Upload an inspection video",
+    type=VIDEO_EXTS,
     accept_multiple_files=False,
 )
 if upload is None:
-    st.info(f"👆 Upload an inspection {mode.lower()} to start the analysis.")
+    st.info("👆 Upload an inspection video to start the analysis.")
     st.stop()
 
 
@@ -275,105 +264,215 @@ st.caption(
 
 
 # ----------------------------------------------------------------- analyze
-report_obj = None
 transcript = None
-defects_summary: list[dict] = []
-image_crops: list[dict] | None = None
 voice_unconfirmed: list[dict] = []
 report_title = "Building Defect Inspection Report"
 
-if mode == "Video":
-    annotated_video_path = (run_dir / "annotated.mp4") if save_annotated_video else None
-    keyframes_dir = run_dir / "keyframes"
+annotated_video_path = (run_dir / "annotated.mp4") if _AUTO_SAVE_VIDEO else None
+keyframes_dir = run_dir / "keyframes"
 
-    # Voice runs first so its mentions can guide the detector via ranking.
-    if transcribe_audio:
-        with st.spinner(
-            f"Extracting audio and transcribing with Whisper '{whisper_size}'..."
-        ):
-            transcript = transcribe_video(
-                input_path,
-                model_size=whisper_size,
-                language=_whisper_lang_arg,
+# Voice runs first so its mentions can guide the detector via ranking.
+with st.spinner(
+    f"Extracting audio and transcribing with Whisper '{_AUTO_WHISPER_SIZE}'..."
+):
+    transcript = transcribe_video(
+        input_path,
+        model_size=_AUTO_WHISPER_SIZE,
+        language=_AUTO_WHISPER_LANG,
+    )
+
+voice_hints = _build_voice_hints(transcript)
+
+# ------------------------------------------------------------------
+# Semantic mention pass + real-time mention-driven evidence panel.
+#
+# This is the "spec" pipeline: embed every transcript segment with
+# all-MiniLM-L6-v2, find segments whose cosine similarity to a defect
+# class crosses SIMILARITY_THRESHOLD, then for each mention scrub the
+# video in a +- WINDOW_SECONDS / SAMPLE_FPS window and grab the best
+# detection of the mentioned class. Streamed live via st.status so the
+# user sees evidence appear as it is found.
+# ------------------------------------------------------------------
+semantic_mentions: list[DefectMention] = []
+semantic_evidence: list[dict] = []   # one entry per mention -> {mention, evidence}
+
+if (transcript is not None
+        and transcript.has_speech
+        and transcript.segments):
+    with st.spinner(
+        "Matching transcript to defect classes (sentence-transformers)..."
+    ):
+        semantic_mentions = find_defect_mentions(
+            transcript.segments,
+            threshold=SIMILARITY_THRESHOLD,
+            dedup_bucket=DEDUP_BUCKET_SECONDS,
+        )
+
+if voice_hints or semantic_mentions:
+    st.caption(
+        f"🎙️ Voice mentions: **{len(voice_hints)}** keyword cue(s) · "
+        f"**{len(semantic_mentions)}** semantic mention(s) "
+        f"(sim ≥ {SIMILARITY_THRESHOLD})."
+    )
+
+# Fold the semantic mentions into voice_hints so analyze_video's voice-
+# corroboration logic sees them too. We keep both lists separately for
+# the per-mention evidence panel below.
+for m in semantic_mentions:
+    label = CLASS_ALIASES.get(m.label, m.label)
+    if label in CLASS_NAMES:
+        voice_hints.append(VoiceHint(
+            time_sec=m.time_sec, label=label, text=m.text,
+        ))
+
+# Stream the per-mention evidence pass while the user watches.
+if semantic_mentions:
+    st.markdown("## 🎙️ Live mention scan")
+    with st.status(
+        f"Scanning {len(semantic_mentions)} mention(s) for visual evidence...",
+        expanded=True,
+    ) as status:
+        for i, m in enumerate(semantic_mentions, 1):
+            status.write(
+                f"**{i}/{len(semantic_mentions)}**  "
+                f"`{_fmt_time(m.time_sec)}`  **{m.label}**  "
+                f"(sim {m.confidence:.2f}) — _{m.text[:120]}_"
             )
+            try:
+                ev = find_evidence_frame_around_time(
+                    input_path,
+                    target_class=m.label,
+                    time_sec=m.time_sec,
+                    weights_path=weights_path,
+                    window_seconds=WINDOW_SECONDS,
+                    sample_fps=SAMPLE_FPS,
+                    conf_threshold=_AUTO_CONF_FLOOR,
+                    iou_threshold=_AUTO_IOU,
+                )
+            except Exception as e:  # noqa: BLE001
+                status.write(f"  · evidence search failed: {e}")
+                ev = None
 
-    voice_hints = _build_voice_hints(transcript)
-    if voice_hints:
-        st.caption(
-            f"🎙️ Voice mentions found: **{len(voice_hints)}** defect cue(s)."
+            # Render the evidence frame (or nearest fallback) inline so
+            # the user sees defects appear in real time.
+            if ev is not None:
+                if ev.found and ev.annotated_image_bgr is not None:
+                    img_path = run_dir / f"mention_{i:02d}_{m.label}.jpg"
+                    cv2.imwrite(str(img_path), ev.annotated_image_bgr)
+                    cap_text = (
+                        f"{m.label} @ {_fmt_time(ev.matched_time_sec or m.time_sec)}"
+                        f" — YOLO {ev.confidence * 100:.1f}%"
+                        f" · audio match {m.confidence:.2f}"
+                    )
+                    status.image(str(img_path), caption=cap_text,
+                                 width="stretch")
+                    semantic_evidence.append({
+                        "mention": m,
+                        "evidence": ev,
+                        "image_path": str(img_path),
+                    })
+                elif ev.nearest_frame_bgr is not None:
+                    img_path = run_dir / f"mention_{i:02d}_{m.label}_nearest.jpg"
+                    cv2.imwrite(str(img_path), ev.nearest_frame_bgr)
+                    status.image(
+                        str(img_path),
+                        caption=(
+                            f"{m.label} @ {_fmt_time(m.time_sec)}"
+                            " — no visual confirmation; nearest frame shown"
+                        ),
+                        width="stretch",
+                    )
+                    semantic_evidence.append({
+                        "mention": m,
+                        "evidence": ev,
+                        "image_path": str(img_path),
+                    })
+        status.update(
+            label=f"Mention scan complete — "
+                  f"{sum(1 for e in semantic_evidence if e['evidence'].found)}/"
+                  f"{len(semantic_mentions)} visually confirmed.",
+            state="complete",
         )
 
-    progress = st.progress(0.0, text="Sampling frames...")
+progress = st.progress(0.0, text="Sampling frames...")
 
-    def _on_progress(p: float) -> None:
-        progress.progress(min(max(p, 0.0), 1.0),
-                          text=f"Detecting... {p * 100:.0f}%")
+def _on_progress(p: float) -> None:
+    progress.progress(min(max(p, 0.0), 1.0),
+                      text=f"Detecting... {p * 100:.0f}%")
 
-    with st.spinner("Running YOLOv8 detection on video frames..."):
-        report_obj = analyze_video(
-            input_path,
-            weights_path=weights_path,
-            conf_threshold=conf_threshold,
-            iou_threshold=iou_threshold,
-            every_n_seconds=every_n_seconds,
-            annotated_out=annotated_video_path,
-            keyframes_dir=keyframes_dir,
-            progress_cb=_on_progress,
-            voice_hints=voice_hints,
-        )
-    progress.progress(1.0, text="Detection complete.")
-    defects_summary = report_obj.detected_defects
-    voice_unconfirmed = report_obj.unconfirmed_voice_mentions
-
-    sampled = report_obj.sampled_frames
-    passed = sum(1 for fp in report_obj.frames if fp.is_defect)
-    rejected = sampled - passed
-    voice_passed = sum(1 for fp in report_obj.frames
-                       if fp.is_defect and fp.voice_corroborated)
-    voice_msg = (f" · **{voice_passed}** voice-corroborated"
-                 if voice_hints else "")
-    voice_only_msg = (
-        f" · **{len(voice_unconfirmed)}** voice mention(s) not visually confirmed"
-        if voice_unconfirmed else ""
+with st.spinner(f"Running {_ARCH_LABEL} detection on video frames..."):
+    report_obj = analyze_video(
+        input_path,
+        weights_path=weights_path,
+        conf_threshold=_AUTO_CONF_FLOOR,
+        iou_threshold=_AUTO_IOU,
+        every_n_seconds=_AUTO_FRAME_STRIDE,
+        annotated_out=annotated_video_path,
+        keyframes_dir=keyframes_dir,
+        progress_cb=_on_progress,
+        voice_hints=voice_hints,
     )
-    st.caption(
-        f"Sampled **{sampled}** frame(s) · **{passed}** with defect(s) · "
-        f"**{rejected}** clean{voice_msg}{voice_only_msg}."
-    )
+progress.progress(1.0, text="Detection complete.")
 
-    if annotated_video_path and annotated_video_path.exists():
-        st.markdown("### Annotated video")
-        st.video(str(annotated_video_path))
+# Auto per-class threshold: classes whose detections are mostly low-conf
+# (median below a global cut-off and detection density high) get their
+# threshold raised to that median to suppress noise. Classes with strong
+# signal keep the recall floor. Voice-mentioned classes get the floor
+# even if vision is weak — we trust corroboration.
+def _auto_threshold_filter(report, base_floor: float, voice_classes: set[str]) -> dict[str, float]:
+    from collections import defaultdict
+    confs: dict[str, list[float]] = defaultdict(list)
+    for fp in report.frames:
+        for det in (fp.detections or []):
+            confs[det.label].append(det.confidence)
+    thresholds: dict[str, float] = {}
+    for label, vals in confs.items():
+        if not vals:
+            thresholds[label] = base_floor
+            continue
+        vals_sorted = sorted(vals)
+        median = vals_sorted[len(vals_sorted) // 2]
+        density = len(vals) / max(1, report.sampled_frames or 1)
+        if label in voice_classes:
+            thresholds[label] = base_floor
+        elif density > 0.5 and median < 0.30:
+            thresholds[label] = max(base_floor + 0.05, median)
+        else:
+            thresholds[label] = max(base_floor, 0.15)
+    return thresholds
 
-else:  # Image mode
-    st.subheader("Uploaded image")
-    st.image(str(input_path), use_container_width=True)
+_voice_classes = {h.label for h in voice_hints}
+_per_class_thr = _auto_threshold_filter(report_obj, _AUTO_CONF_FLOOR, _voice_classes)
 
-    annotated_image_path = run_dir / "annotated.jpg"
+# Re-filter detected_defects + per-frame is_defect using adaptive thresholds.
+_filtered_summary = []
+for d in report_obj.detected_defects:
+    thr = _per_class_thr.get(d["label"], _AUTO_CONF_FLOOR)
+    if d.get("max_confidence", 0.0) >= thr:
+        _filtered_summary.append(d)
+report_obj.detected_defects = _filtered_summary
+defects_summary = _filtered_summary
+voice_unconfirmed = report_obj.unconfirmed_voice_mentions
 
-    with st.spinner("Running YOLOv8 detection (whole image + tile grid)..."):
-        report_obj = analyze_image(
-            input_path,
-            weights_path=weights_path,
-            conf_threshold=conf_threshold,
-            iou_threshold=iou_threshold,
-            grid=grid_size,
-            annotated_out=annotated_image_path,
-        )
-    defects_summary = report_obj.detected_defects
+sampled = report_obj.sampled_frames
+passed = sum(1 for fp in report_obj.frames if fp.is_defect)
+rejected = sampled - passed
+voice_passed = sum(1 for fp in report_obj.frames
+                   if fp.is_defect and fp.voice_corroborated)
+voice_msg = (f" · **{voice_passed}** voice-corroborated"
+             if voice_hints else "")
+voice_only_msg = (
+    f" · **{len(voice_unconfirmed)}** voice mention(s) not visually confirmed"
+    if voice_unconfirmed else ""
+)
+st.caption(
+    f"Sampled **{sampled}** frame(s) · **{passed}** with defect(s) · "
+    f"**{rejected}** clean{voice_msg}{voice_only_msg}."
+)
 
-    image_crops = save_defect_crops(
-        input_path, report_obj,
-        out_dir=run_dir / "crops",
-        conf_threshold=conf_threshold,
-    )
-    st.caption(
-        f"Whole image + **{grid_size * grid_size}** tile pass(es) · "
-        f"**{len(defects_summary)}** defect class(es) found."
-    )
-    if annotated_image_path.exists():
-        st.markdown("### Annotated image")
-        st.image(str(annotated_image_path), use_container_width=True)
+if annotated_video_path and annotated_video_path.exists():
+    st.markdown("### Annotated video")
+    st.video(str(annotated_video_path))
 
 
 # ----------------------------------------------------------------- summary
@@ -390,29 +489,71 @@ c4.metric("Low severity", low)
 
 if not defects_summary:
     st.success(
-        "No defects detected above the confidence threshold. "
-        "Try lowering it in the sidebar if you expect defects."
+        "No defects detected in this video. The auto-tuned threshold "
+        "kept everything below the noise floor for this clip."
     )
 else:
-    rows = []
-    for d in defects_summary:
-        if mode == "Video":
-            where = (f"{d.get('count', 0)} frames · "
-                     f"{_fmt_time(d.get('first_time_sec', 0))}–"
-                     f"{_fmt_time(d.get('last_time_sec', 0))}")
-        else:
-            where = f"{d.get('count', 0)} region(s) in image"
-        rows.append({
-            "Defect": d["label"],
-            "Severity": d.get("severity", "?"),
-            "Count": d.get("count", 0),
-            "Places": d.get("place_count", 1) if mode == "Video" else 1,
-            "Max conf.": f"{d.get('max_confidence', 0) * 100:.1f}%",
-            "Avg conf.": f"{d.get('avg_confidence', 0) * 100:.1f}%",
-            "Where": where,
-            "Recommendation": d.get("recommendation", ""),
-        })
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    # ------------------------------------------------------------------
+    # Flat per-frame summary: one card per unique frame that contains
+    # ANY defect (across all classes). All boxes for all classes in
+    # that frame are drawn together. Adjacent samples and same-scene
+    # duplicates collapse via time-bucket + spatial-IoU dedup so the
+    # camera lingering on one wall doesn't fill the page.
+    # ------------------------------------------------------------------
+    st.caption("🎞️ Each defect-containing frame is shown below.")
+    instances_dir = run_dir / "summary_instances"
+    flat_instances = render_any_defect_frame_instances(
+        input_path,
+        report_obj.frames,
+        out_dir=instances_dir,
+        dedup_seconds=1.5,
+        max_instances=3,
+    )
+
+    if not flat_instances:
+        st.info(
+            "No clean defect frames survived dedup. "
+            "Defect Findings below still lists the per-class details."
+        )
+    else:
+        for i, inst in enumerate(flat_instances, 1):
+            img = inst.get("image_path")
+            t = inst.get("time_sec")
+            nb = inst.get("num_boxes", 1)
+            labels = inst.get("labels") or []
+            label_str = ", ".join(f"`{l}`" for l in labels)
+
+            st.markdown(
+                f"##### Frame {i} @ `{_fmt_time(t)}` — "
+                f"{nb} defect{'s' if nb != 1 else ''} "
+                f"<span class='small-caption'>({label_str})</span>",
+                unsafe_allow_html=True,
+            )
+            if img and Path(img).exists():
+                st.image(img, width="stretch")
+            else:
+                st.info("No frame image available.")
+
+            # Pull the closest transcript line for any of the labels in
+            # this frame so the inspector's words align with the visuals.
+            best_seg = None
+            best_dt = float("inf")
+            for lab in labels:
+                segs = match_transcript_to_defect(
+                    transcript, lab, time_sec=t,
+                )
+                for s in segs:
+                    dt = abs(0.5 * (s.start + s.end) - (t or 0.0))
+                    if dt < best_dt:
+                        best_dt = dt
+                        best_seg = s
+            if best_seg and (best_seg.text or "").strip():
+                st.markdown(
+                    f"<div class='small-caption'>"
+                    f"🎙️ <code>[{_fmt_time(best_seg.start)}]</code> "
+                    f"<i>“{best_seg.text.strip()}”</i></div>",
+                    unsafe_allow_html=True,
+                )
 
 
 # ------------------------------------------------- per-defect findings UI
@@ -427,14 +568,11 @@ if defects_summary:
             kf = d.get("keyframe") or {}
             img_path = kf.get("image_path")
             ts = kf.get("time_sec")
-            if mode == "Video":
-                where = (
-                    f"first @ {_fmt_time(d.get('first_time_sec', 0))}, "
-                    f"last @ {_fmt_time(d.get('last_time_sec', 0))} "
-                    f"({d.get('count', 0)} frames)"
-                )
-            else:
-                where = f"{d.get('count', 0)} region(s) in image"
+            where = (
+                f"first @ {_fmt_time(d.get('first_time_sec', 0))}, "
+                f"last @ {_fmt_time(d.get('last_time_sec', 0))} "
+                f"({d.get('count', 0)} frames)"
+            )
 
             with cols[0]:
                 if img_path and Path(img_path).exists():
@@ -442,12 +580,11 @@ if defects_summary:
                         f"{label} — {d.get('max_confidence', 0) * 100:.1f}%"
                         + (f" @ {_fmt_time(ts)}" if ts is not None else "")
                     )
-                    st.image(img_path, use_container_width=True, caption=cap)
+                    st.image(img_path, width="stretch", caption=cap)
                 else:
                     st.info("No marked image available for this defect.")
 
             with cols[1]:
-                place_count = int(d.get("place_count", 1) or 1)
                 st.markdown(
                     f"**{label}** &nbsp; "
                     f"{_severity_pill(d.get('severity', '?'))}",
@@ -455,30 +592,15 @@ if defects_summary:
                 )
                 st.markdown(
                     f"**Confidence:** {d.get('max_confidence', 0) * 100:.1f}%  \n"
-                    f"**Places shown:** {place_count}  \n"
                     f"**Where:** {where}  \n"
                     f"**Recommendation:** {d.get('recommendation', '')}"
                 )
-                places = d.get("places") or []
-                place_cards = places if places else (d.get("place_crops") or [])
-                if len(place_cards) > 1:
-                    st.markdown("**Detected places**")
-                    gcols = st.columns(min(3, len(place_cards)))
-                    for idx, place in enumerate(place_cards):
-                        with gcols[idx % len(gcols)]:
-                            p_img = place.get("image_path")
-                            if p_img and Path(p_img).exists():
-                                label_text = f"Place {place.get('index', idx + 1)}"
-                                if place.get("time_sec") is not None:
-                                    label_text += f" @ {_fmt_time(place.get('time_sec'))}"
-                                st.image(
-                                    p_img,
-                                    use_container_width=True,
-                                    caption=(
-                                        f"{label_text}"
-                                        f" — {place.get('confidence', 0.0) * 100:.1f}%"
-                                    ),
-                                )
+                # Note: the per-frame card grid now lives in the Defect
+                # Summary section above (deduplicated by both time and
+                # bounding-box overlap). The old "Detected places"
+                # gallery was duplicating those rows, often showing the
+                # same physical defect three or four times because
+                # consecutive sample frames re-detected it -- removed.
                 matched = match_transcript_to_defect(
                     transcript, label, time_sec=ts,
                 )
@@ -507,7 +629,7 @@ if defects_summary:
                       and not transcript.error):
                     st.caption("Inspector did not comment on this defect.")
 
-if mode == "Video" and voice_unconfirmed:
+if voice_unconfirmed:
     st.markdown("## 🎙️ Voice Mentions Not Visually Confirmed")
     st.warning(
         "These items were mentioned in the audio transcript, but the "
@@ -530,7 +652,7 @@ if mode == "Video" and voice_unconfirmed:
                         f"{label} review frame"
                         + (f" @ {_fmt_time(ts)}" if ts is not None else "")
                     )
-                    st.image(img_path, use_container_width=True, caption=caption)
+                    st.image(img_path, width="stretch", caption=caption)
                 else:
                     st.info("No nearby review frame available.")
             with cols[1]:
@@ -553,7 +675,7 @@ if mode == "Video" and voice_unconfirmed:
                     for q in quotes:
                         st.markdown(f"> _{q}_")
 
-if mode == "Video" and transcript is not None:
+if transcript is not None:
     st.markdown("## 📝 Voice Transcript")
     if transcript.error:
         st.warning(transcript.error)
@@ -574,12 +696,6 @@ if mode == "Video" and transcript is not None:
 # ----------------------------------------------------------------- exports
 st.markdown("## 📄 Inspection Report")
 
-annotated_image_for_report = None
-if mode == "Image":
-    candidate = run_dir / "annotated.jpg"
-    if candidate.exists():
-        annotated_image_for_report = str(candidate)
-
 pdf_path = run_dir / "report.pdf"
 pdf_ok = True
 try:
@@ -588,8 +704,6 @@ try:
         title=report_title,
         report=report_obj,
         transcript=transcript,
-        annotated_image_path=annotated_image_for_report,
-        image_crops=image_crops,
     )
 except Exception as e:  # noqa: BLE001
     pdf_ok = False
@@ -601,7 +715,7 @@ if pdf_ok and pdf_path.exists():
         data=pdf_path.read_bytes(),
         file_name="defect_report.pdf",
         mime="application/pdf",
-        use_container_width=True,
+        width="stretch",
     )
 else:
-    st.button("PDF unavailable", disabled=True, use_container_width=True)
+    st.button("PDF unavailable", disabled=True, width="stretch")
