@@ -108,6 +108,10 @@ accounts/env/
 newsletter/env/
 accounts/templatetags/env/
 
+.claude
+.cursor
+
+
 # IDEs
 .vscode/
 .idea/
