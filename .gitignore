@@ -129,13 +129,16 @@ dmypy.json
 # migrations/
 # */migrations/*
 
-output
-labels.cache
-dataset/*
-runs/*
-BD3-Dataset/*
-test/*
-dataset/*
-dataset
-BD3-Dataset
-BD3-Dataset/*
+# Datasets
+dataset/
+dataset_old/
+BD3-Dataset/
+
+# Images
+*.jpg
+*.jpeg
+*.png
+
+# YOLO outputs
+runs/
+output/
