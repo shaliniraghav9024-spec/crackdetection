@@ -1,12 +1,12 @@
 """
 CLIP-based zero-shot defect verifier.
 
-A small ResNet-18 classifier trained on a focused dataset is great at
-saying "this looks like a crack" but easily fooled by visually similar
+A YOLO detector fine-tuned on a focused dataset is great at saying
+"this looks like a crack" but easily fooled by visually similar
 distractors (watches, clocks, signs, vehicles, framed pictures).
-OpenAI's CLIP, on the other hand, was trained on hundreds of millions of
-captioned images and "knows" what a clock vs a wall vs a hole actually
-looks like.
+OpenAI's CLIP, on the other hand, was trained on hundreds of millions
+of captioned images and "knows" what a clock vs a wall vs a hole
+actually looks like.
 
 This module wraps an OpenCLIP model (ViT-B/32 by default) and exposes a
 single function ``verify_box`` that, given a frame and a candidate box,

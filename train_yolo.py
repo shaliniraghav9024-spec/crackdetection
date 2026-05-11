@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-YOLOv11 training for the BD3 building-defect dataset.
+YOLOv8 training for the BD3 building-defect dataset.
 
 6 classes: algae, major_crack, minor_crack, peeling, spalling, stain
 
 Usage:
-    python train_yolo.py                     # default: yolo11n baseline
-    python train_yolo.py --model yolo11s.pt  # step up for +3-5% mAP (needs GPU)
-    python train_yolo.py --cfg yolo11_emc.yaml --model yolo11n.pt  # full EMC arch
+    python train_yolo.py                     # default: yolov8n baseline
+    python train_yolo.py --model yolov8s.pt  # step up for +3-5% mAP (needs GPU)
+    python train_yolo.py --model yolov8m.pt  # higher capacity (more VRAM)
     python train_yolo.py --epochs 150 --batch 8 --imgsz 640 --device cpu  # CPU-friendly
 """
 
@@ -68,10 +68,10 @@ BUILDING_DEFECT_HYP = {
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model",    default="yolo11n.pt",
-                   help="Starting weights. yolo11n.pt=fastest, yolo11s/m.pt=higher mAP")
+    p.add_argument("--model",    default="yolov8n.pt",
+                   help="Starting weights. yolov8n.pt=fastest, yolov8s/m.pt=higher mAP")
     p.add_argument("--cfg",      default=None,
-                   help="Custom model architecture YAML (e.g. yolo11_emc.yaml). "
+                   help="Custom model architecture YAML. "
                         "Leave empty to use the stock model arch.")
     p.add_argument("--data",     default="data.yaml", help="Path to data.yaml")
     p.add_argument("--epochs",   type=int,   default=250)
@@ -83,7 +83,7 @@ def parse_args() -> argparse.Namespace:
                    help="'0' = first CUDA GPU, 'cpu' = force CPU, '' = auto")
     p.add_argument("--workers",  type=int,   default=8)
     p.add_argument("--project",  default="runs/detect")
-    p.add_argument("--name",     default="yolo11_emc_building")
+    p.add_argument("--name",     default="bd3_yolov8n")
     p.add_argument("--patience", type=int,   default=30,
                    help="Early-stop patience in epochs.")
     p.add_argument("--save-period", type=int, default=10,
@@ -160,7 +160,7 @@ def preflight(data_yaml_path: Path) -> None:
 # Main training function
 # ---------------------------------------------------------------------------
 
-def train_yolo11_emc(args: argparse.Namespace) -> None:
+def train_yolo(args: argparse.Namespace) -> None:
     data_yaml = Path(args.data).resolve()
 
     if not args.skip_checks:
@@ -184,7 +184,7 @@ def train_yolo11_emc(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------
     # Training
     # ------------------------------------------------------------------
-    print("\nStarting YOLOv11-EMC training ...")
+    print("\nStarting YOLOv8 training ...")
     print(f"  epochs={args.epochs}  imgsz={args.imgsz}  batch={args.batch}  device={args.device}")
     print()
 
@@ -203,7 +203,7 @@ def train_yolo11_emc(args: argparse.Namespace) -> None:
         val=True,
         plots=True,
         # Loss / NMS
-        iou=0.7,         # EIoU auto-enabled in YOLOv11; this sets NMS IoU threshold
+        iou=0.7,         # NMS IoU threshold
         conf=0.001,      # low confidence threshold during val for full recall curve
         # Hyperparameters
         **BUILDING_DEFECT_HYP,
@@ -242,7 +242,7 @@ def train_yolo11_emc(args: argparse.Namespace) -> None:
 def main() -> None:
     args = parse_args()
     init_seeds(args.seed)
-    train_yolo11_emc(args)
+    train_yolo(args)
 
 
 if __name__ == "__main__":

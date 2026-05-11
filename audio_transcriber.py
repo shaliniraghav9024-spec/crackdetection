@@ -327,8 +327,26 @@ def _normalize_transcript(text: str) -> str:
     return out
 
 
+_KEYWORD_TO_CANONICAL: dict[str, str] = {
+    # Two of the DEFECT_KEYWORDS top-level keys are convenience
+    # *keyword buckets*, not canonical defect classes. We collapse them
+    # onto the closest real class so the UI never surfaces non-defect
+    # tokens like "general_crack" / "water" in the "defects: ..." tag
+    # (they used to leak through unchanged). Kept in sync with
+    # defect_analyzer.CLASS_ALIASES.
+    "general_crack": "minor_crack",
+    "water":         "stain",
+}
+
+
 def _tag_defects(text: str) -> list[str]:
-    """Return the canonical defect classes mentioned in ``text``."""
+    """Return the canonical defect classes mentioned in ``text``.
+
+    Buckets that aren't real defect classes (``general_crack`` is just
+    a catch-all crack keyword, ``water`` is a moisture cue) are mapped
+    to their canonical equivalents via ``_KEYWORD_TO_CANONICAL`` so the
+    report only ever lists real defect classes.
+    """
     if not text:
         return []
     norm = _normalize_transcript(text)
@@ -337,7 +355,7 @@ def _tag_defects(text: str) -> list[str]:
         for kw in keywords:
             pattern = r"\b" + re.escape(kw) + r"s?\b"
             if re.search(pattern, norm):
-                found.append(canonical)
+                found.append(_KEYWORD_TO_CANONICAL.get(canonical, canonical))
                 break
     # Deduplicate, preserve order
     seen: set[str] = set()

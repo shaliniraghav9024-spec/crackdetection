@@ -16,8 +16,8 @@ the data itself:
 | Per-class confidence threshold | Adaptive: starts at `0.10` recall floor, raised to the per-class median when a class has many low-conf detections (`> 0.5/frame` and `median < 0.30`); voice-mentioned classes always use the floor. |
 | NMS IoU | Fixed at `0.45`; downstream containment-dedup catches overlapping nested boxes that pure-IoU NMS misses. |
 | Frame stride | `0.5 s` per sample; per-frame summary cards then collapse adjacent samples via time-bucket (1.5 s) + spatial-IoU dedup. |
-| Whisper backend / size / language | `faster-whisper` `medium` int8, English forced; falls back to `openai-whisper` if the faster backend isn't installed. Override with `WHISPER_SIZE=large-v3` only if you have a GPU. |
-| FP-filter pipeline | All 6 stages on by default (distractor mask → CLIP → paint-chip → implausible-hole → containment dedup). Set `DISABLE_FP_FILTERS=1` only when comparing un-filtered recall during a re-training cycle. |
+| Whisper backend / size / language | `faster-whisper` `medium` int8, English forced; falls back to `openai-whisper` if the faster backend isn't installed. `large-v3` is impractical on CPU (~10× slower than `medium`). |
+| FP-filter pipeline | All 6 stages on by default (distractor mask → CLIP → paint-chip → implausible-hole → containment dedup). Set `DISABLE_FP_FILTERS=1` to compare raw-detector output. |
 | Frame-instance cap | 3 cards per video — picked by `(num_boxes desc, max_confidence desc)` after dedup, then re-sorted chronologically for display. |
 
 The Streamlit sidebar surfaces only the defect class list and a status
@@ -106,12 +106,17 @@ the negative class.
 | `hole`        | High     | **auxiliary only** — keremberke pothole detector + 4-stage hole sanity filter; the trained YOLO no longer outputs this class |
 | `normal`      | None     | Negative class — never reported |
 
-[`yolo_classes.txt`](yolo_classes.txt) still lists the broader 8-class
-set used by labelImg, so future hand-annotations of `hole` data can
-drop straight back into the trained model.
+[`yolo_classes.txt`](yolo_classes.txt) lists the broader 8-class set
+used by labelImg, so hand-annotations of `hole` data can drop straight
+back into the trained model.
 
 `CLASS_ALIASES` in `defect_analyzer.py` folds in synonyms (`crack` →
 `minor_crack`, `flaking` / `blistering` → `peeling`, etc.).
+
+> **Note:** No fine-tuned `best.pt` ships with the repo. Until you run
+> [`train_yolo.py`](train_yolo.py), the primary slot falls back to stock
+> `yolov8m.pt` (COCO classes only), and crack + hole detection is carried
+> by the aux ensemble alone. See *Train your own primary detector* below.
 
 ---
 
@@ -149,164 +154,43 @@ the pothole aux is silently skipped, etc.).
 
 | Variable | Default | Effect |
 |---|---|---|
-| `WHISPER_SIZE` | `medium` | `tiny` / `base` / `small` / `medium` / `large-v3`. Use `large-v3` only with a GPU — on CPU it is ~10× slower than `medium`. |
-| `DISABLE_FP_FILTERS` | unset | Set to `1` to turn off the distractor mask + CLIP verifier (useful while re-training to compare unfiltered detection recall). |
+| `WHISPER_SIZE` | `medium` | `tiny` / `base` / `small` / `medium`. `large-v3` is ~10× slower than `medium` on CPU and not recommended. |
+| `DISABLE_FP_FILTERS` | unset | Set to `1` to turn off the distractor mask + CLIP verifier (useful for diagnosing what the raw detectors return before filtering). |
 
 ---
 
-## Data preparation pipeline
+## Train your own primary detector (optional)
 
-The training data lives at `~/building-defect-detection/dataset/` in YOLO
-format (`{train,val}/{images,labels}`). The scripts below build it from
-two upstream Roboflow exports — `merged_dataset` (6 source classes:
-crack, leakage, abscission, corrosion, bulge, algae) and `bd3_dataset`
-(single-class crack annotations) — into the 6-class project taxonomy.
-
-```
-~/property_inspector/merged_dataset    (6 raw classes)
-~/property_inspector/bd3_dataset       (1 raw class)
-            │
-            ▼  merge_dataset.py     (MD5 dedup against bd3_dataset hashes)
-            │
-~/building-defect-detection/dataset_old/   (raw IDs preserved)
-            │
-            ▼  remap_labels.py      (6-class mapping, bbox clamping, intra-dedup)
-            │
-~/building-defect-detection/dataset_remapped/
-            │
-            ▼  merge_bd3.py             (BD3 → major_crack, dedup against existing)
-            │  or, if BD3 was already in dataset_old:
-            ▼  relabel_bd3_as_major_crack.py
-            │
-~/building-defect-detection/dataset/        (final, training-ready)
-```
-
-| Script | Purpose |
-|---|---|
-| [`merge_dataset.py`](merge_dataset.py) | Copy `merged_dataset` into the project, MD5-dedup against `bd3_dataset` |
-| [`remap_labels.py`](remap_labels.py) | Map raw 6-class IDs to project taxonomy, clamp bboxes that extend past `[0,1]`, intra-dataset dedup |
-| [`merge_bd3.py`](merge_bd3.py) | Copy BD3 cracks into the dataset as `major_crack`, hash-dedup against existing |
-| [`relabel_bd3_as_major_crack.py`](relabel_bd3_as_major_crack.py) | One-shot in-place fix when BD3 was already present but mis-labelled (idempotent + atomic backup) |
-| [`validate_dataset.py`](validate_dataset.py) | Read-only parallel validator: structure, MD5 duplicates, decode errors, missing/orphan labels, invalid YOLO coords, per-class distribution. Always run after every pipeline step. |
-
-The 6-class taxonomy in [`data.yaml`](data.yaml) /
-[`classes.txt`](classes.txt) is:
-
-```
-0=algae   1=major_crack   2=minor_crack   3=peeling   4=spalling   5=stain
-```
-
-```bash
-# Validate the source
-python validate_dataset.py --root ~/building-defect-detection/dataset_old \
-    --num-classes 6 --workers 10 --report old_report.json
-
-# Apply the 6-class mapping with bbox clamping + dedup
-python remap_labels.py        # writes dataset_remapped/
-
-# Merge BD3 cracks as major_crack
-python merge_bd3.py           # appends to dataset_remapped/
-
-# Re-validate the new dataset before training
-python validate_dataset.py --root ~/building-defect-detection/dataset_remapped \
-    --num-classes 6 --workers 10 --report new_report.json
-
-# Atomic, reversible swap
-mv ~/building-defect-detection/dataset            ~/building-defect-detection/dataset_legacy
-mv ~/building-defect-detection/dataset_remapped   ~/building-defect-detection/dataset
-```
-
-Current train-set distribution after the pipeline (53,422 boxes total,
-86.7% empty / negative images):
-
-| ID | class | train | val | total | % of boxes |
-|---:|---|---:|---:|---:|---:|
-| 0 | algae       |    415 |    52 |    467 |  0.9% |
-| 1 | major_crack |  1,268 |   133 |  1,401 |  2.6% |
-| 2 | minor_crack | 14,400 | 1,656 | 16,056 | 30.1% |
-| 3 | peeling     | 18,671 | 2,157 | 20,828 | 39.0% |
-| 4 | spalling    |  7,383 |   965 |  8,348 | 15.6% |
-| 5 | stain       |  5,584 |   738 |  6,322 | 11.8% |
-
-`algae` and `major_crack` are severely under-represented — class-balanced
-sampling, copy-paste augmentation (already on at `0.25` in the
-hyperparameter profile), or focal-loss are required for usable per-class
-recall on those two.
-
----
-
-## Train your own primary detector
-
-`train_yolo.py` defaults to `--model yolo11n.pt` (auto-downloaded from
-Ultralytics on first use). Pre-flight checks run before training and
-will refuse to start if `dataset/` has no annotations.
+CPU training works for smoke runs but is slow on the full BD3 dataset.
+Get the raw images separately (this repo does not ship them) and place
+them under `dataset/{train,val}/{images,labels}` per [`data.yaml`](data.yaml).
 
 ```bash
 # CPU smoke test (verifies the pipeline; ~15-30 min on 12 cores)
-yolo train model=yolo11n.pt data=data.yaml epochs=1 imgsz=320 batch=8 \
-    device=cpu workers=4 fraction=0.02 \
-    project=runs/detect name=smoketest_local
+python train_yolo.py --model yolov8n.pt --epochs 1 --imgsz 320 \
+    --batch 8 --device cpu --workers 4 --name smoketest_local
 
-# GPU baseline — recommended first real run
-python train_yolo.py --model yolo11s.pt --epochs 200 --imgsz 640 \
-    --batch 32 --device 0 --name bd3_yolo11s_v1
-
-# Custom 4-scale architecture (P2-P5 head; better for small cracks)
-python train_yolo.py --cfg yolo11_emc.yaml --model yolo11n.pt \
-    --imgsz 960 --batch 16 --device 0 --name bd3_yolo11_emc
+# CPU real run on a small slice (impractical on the full dataset)
+python train_yolo.py --model yolov8n.pt --epochs 50 --imgsz 480 \
+    --batch 8 --device cpu --workers 4 --name bd3_yolov8n_cpu
 ```
+
+Dataset-prep helpers, if you re-acquire the source data:
+[`prepare_yolo_dataset.py`](prepare_yolo_dataset.py),
+[`merge_dataset.py`](merge_dataset.py),
+[`merge_bd3.py`](merge_bd3.py),
+[`remap_labels.py`](remap_labels.py),
+[`validate_dataset.py`](validate_dataset.py).
+Hyperparameter search:
+[`tune_hyperparams.py`](tune_hyperparams.py).
+mAP comparison:
+[`validate_and_compare.py`](validate_and_compare.py).
+Export trained weights:
+[`export_model.py`](export_model.py).
 
 Best weights land at `runs/detect/<name>/weights/best.pt`. The app
-picks the **best-trained** `best.pt` automatically — ranked by
-`epochs × imgsz`. The UI surfaces the resolved architecture
-(YOLOv8 / YOLO11 / etc.) so you always know which model is loaded.
-
-If no fine-tuned run exists the app falls back to `yolov8m.pt` (stock
-COCO weights — has no defect classes), and the report is carried
-mostly by the auxiliary crack + pothole models until you train.
-
-### Cloud-GPU workflow
-
-CPU-only training on the full 117 k-image dataset is impractical
-(days–weeks). Two cloud paths are scaffolded; both reuse the same tar
-package and run the same `train_yolo.py`.
-
-```bash
-# Pack project + dataset (~3.5 GB tar, no compression — JPEGs already shrink-resistant)
-./pack_dataset.sh                  # → ../bd3_cloud_pkg.tar  + sha256 checksum
-```
-
-| Path | When | Files |
-|---|---|---|
-| **Google Colab** | First training run; free T4 (12-hr session) or paid L4/A100 | [`bd3_train_colab.ipynb`](bd3_train_colab.ipynb) — mounts Drive, extracts tarball, patches `data.yaml`, re-validates, trains, copies `runs/<name>/` back to Drive, optional ONNX export |
-| **vast.ai** | Cheaper sustained runs ($0.20–0.40 / hr for RTX 3090/4090/A10) | [`deploy_vastai.sh`](deploy_vastai.sh) — rsyncs tarball + run script to remote, launches training inside `tmux`. [`vastai_remote_train.sh`](vastai_remote_train.sh) runs on the instance; configurable via env vars (`MODEL=yolo11m.pt EPOCHS=300 ...`) |
-
-```bash
-# vast.ai end-to-end
-./pack_dataset.sh
-./deploy_vastai.sh root@ssh4.vast.ai 12345
-ssh -p 12345 root@ssh4.vast.ai 'tail -f /workspace/train.log'
-rsync -avh --progress -e "ssh -p 12345" \
-    root@ssh4.vast.ai:/workspace/bd3/runs/ ./runs_vastai/
-```
-
-Both cloud scripts re-run [`validate_dataset.py`](validate_dataset.py)
-after extraction so corrupt uploads are caught before any GPU time is
-spent.
-
-### Honest note on accuracy
-
-Final accuracy depends on:
-
-- how many **annotated** images you have per class,
-- class balance — see the table above; algae @ 0.9% and major_crack
-  @ 2.6% are the bottlenecks,
-- image resolution and motion blur,
-- whether you can afford `yolo11m.pt` over `yolo11n.pt`.
-
-`runs/detect/<name>/results.png` and the per-class confusion matrix
-show which class is dragging the average. **More annotated examples**
-of the weak class beats more epochs almost every time.
+auto-picks the most-trained `best.pt` over the `yolov8m.pt` fallback
+on next launch.
 
 ---
 
@@ -328,7 +212,7 @@ video**. The defaults live as constants at the top of [`app.py`](app.py)
 under `# auto-tuned defaults`. To override one without editing code:
 
 ```bash
-WHISPER_SIZE=large-v3 streamlit run app.py        # GPU-only; CPU is too slow
+WHISPER_SIZE=small streamlit run app.py           # faster than the medium default
 DISABLE_FP_FILTERS=1 streamlit run app.py         # un-filtered comparison run
 TRANSFORMERS_VERBOSITY=error streamlit run app.py # silence transformers spam
 ```
@@ -385,8 +269,7 @@ python predict_yolo.py path/to/inspection.mp4 \
     --conf 0.30 --every-n-seconds 0.5 --save-video
 
 # explicit weights + larger imgsz
-python predict_yolo.py --weights runs/detect/<run>/weights/best.pt \
-    --imgsz 960 path/to/file
+python predict_yolo.py --weights yolov8m.pt --imgsz 960 path/to/file
 ```
 
 Output goes to `output/yolo/<run_name>/`:
@@ -421,57 +304,49 @@ output/app_runs/run_XXXX/
 ## Project layout
 
 ```
+# --- inference (runtime) ---
 app.py                  # Streamlit front-end (auto-tuned, video-only)
 defect_analyzer.py      # YOLO ensemble + post-filters + frame-instance renderers
-                        #  - render_class_frame_instances
-                        #  - render_any_defect_frame_instances
-                        #  - find_evidence_frame_around_time
-                        #  - 6-stage post-filter pipeline
 audio_transcriber.py    # ffmpeg + faster-whisper (with openai-whisper fallback)
-                        #  - word_timestamps, vad_filter, homophone normalisation
 defect_matcher.py       # sentence-transformers semantic transcript matcher
-                        #  - DefectMention dataclass, DEFECT_DESCRIPTIONS
 clip_verifier.py        # OpenCLIP zero-shot defect / distractor scorer
 yolo_distractors.py     # YOLOv8m-COCO distractor detection + mask
 report_generator.py     # ReportLab PDF rendering
 predict_yolo.py         # CLI tester (images / folders / videos)
-train_yolo.py           # YOLO fine-tune script (defaults to yolo11n.pt)
-tune_hyperparams.py     # Ray Tune hyperparameter search (mAP-driven)
-yolo11_emc.yaml         # 4-scale (P2-P5) custom architecture for small defects
-augment_config.py       # Albumentations pipeline (CLAHE / blur / weather)
-                        #   auto-picked up by Ultralytics if installed
 
-# --- data pipeline (raw datasets → training-ready 6-class) ---
+# --- training (optional, CPU-only) ---
+train_yolo.py                      # YOLO fine-tune (defaults to yolov8n.pt)
+tune_hyperparams.py                # Ray Tune hyperparameter search
+validate_and_compare.py            # side-by-side mAP comparison
+export_model.py                    # export trained .pt → ONNX/OpenVINO/TFLite/etc
+augment_config.py                  # Albumentations pipeline (auto-picked up by Ultralytics)
+annotate.sh                        # launch labelImg in YOLO mode
+
+# --- dataset prep ---
+prepare_yolo_dataset.py            # build dataset/ from raw class folders
 merge_dataset.py                   # merged_dataset → dataset/   (MD5 dedup)
+merge_bd3.py                       # BD3 cracks → dataset as major_crack
 remap_labels.py                    # 6-class mapping + bbox clamp + dedup
-merge_bd3.py                       # BD3 cracks → dataset_remapped as major_crack
-relabel_bd3_as_major_crack.py      # one-shot in-place fix (idempotent)
 validate_dataset.py                # parallel read-only validator
-prepare_yolo_dataset.py            # legacy BD3 → YOLO dataset prep
-
-# --- evaluation ---
-validate_and_compare.py # side-by-side mAP comparison across checkpoints
-
-# --- cloud training ---
-pack_dataset.sh           # tar dataset + scripts for upload (~3.5 GB)
-bd3_train_colab.ipynb     # Colab notebook (Drive mount + train + save back)
-deploy_vastai.sh          # rsync tar + launch training over SSH inside tmux
-vastai_remote_train.sh    # remote-side train script (env-var configurable)
 
 # --- config ---
 data.yaml               # YOLO dataset config (6 training classes + paths)
 classes.txt             # Canonical 6-class training list
-yolo_classes.txt        # Broader 8-class list used by labelImg (annotation-side)
+yolo_classes.txt        # Broader 8-class list used by labelImg
 
-runs/detect/            # Ultralytics training output (weights, plots, logs)
+# --- weights ---
+yolov8m.pt              # Primary detector fallback + distractor model
+yolov8n.pt              # Smaller backup weights
+app_requirements.txt    # pip dependencies
+
+# --- runtime dirs ---
 models/                 # Auxiliary detectors
   ├── levanell/                       (commit-tracked)
   ├── opensistemas_n/                 (commit-tracked)
   └── keremberke_pothole_m/           (auto-downloaded on first run)
+runs/detect/            # Ultralytics training output (weights, plots, logs)
 output/app_runs/        # Per-session app outputs (PDFs, keyframes)
-dataset/                # Active training set (6 classes)
-dataset_old/            # Untouched copy with raw merged_dataset class IDs
-                        #   — kept as a safety net for re-running remap
+dataset/                # Active training set (you must populate this)
 ```
 
 ---
@@ -493,7 +368,7 @@ failure modes:
 | Local fine-tuned YOLO | The 6 defect classes in *your* footage (algae, major_crack, minor_crack, peeling, spalling, stain). |
 | Levanell crack/joint segmentation | Real crack patterns missed by the local model; explicitly differentiates `joint` (architectural seam) from `crack`. |
 | OpenSistemas crack-seg | Generic crack patterns from a 4 k-image training set. |
-| **keremberke YOLOv8m pothole** | Sole vote for the `hole` class. The trained YOLO has no source data for `hole`, so this aux model's output is the only way `hole` ever appears in a report. |
+| **keremberke YOLOv8m pothole** | Sole vote for the `hole` class. |
 | YOLOv8m COCO distractor mask | Clocks, TVs, signs, books, cell phones, ties, handbags, persons. |
 | OpenCLIP zero-shot verifier | Long-tail distractors COCO doesn't know about (national flags, badges, decals). |
 | Paint-chip reclassifier | Bright/saturated "hole" boxes that are really exposed primer → `peeling`. |
@@ -527,8 +402,9 @@ faster-whisper fails to import or download.
 
 ## Further reading
 
-- [`data.yaml`](data.yaml) — dataset configuration consumed by training.
-- [`classes.txt`](classes.txt) — canonical defect class list.
+- [`defect_analyzer.py`](defect_analyzer.py) — `CLASS_NAMES`,
+  `CLASS_ALIASES`, `SEVERITY`, `RECOMMENDATIONS` constants near the
+  top hold the canonical defect schema.
 - [`defect_matcher.py`](defect_matcher.py) — tunable knobs for the
   semantic mention matcher (`SIMILARITY_THRESHOLD`, `WINDOW_SECONDS`,
   `SAMPLE_FPS`, `DEDUP_BUCKET_SECONDS`).

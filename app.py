@@ -227,16 +227,8 @@ def _detect_arch_from_weights(p: Path) -> str:
         except Exception:
             pass
     probe = (base_model + " " + name).lower()
-    if "yolo11" in probe or "yolov11" in probe:
-        return "YOLO11"
-    if "yolov10" in probe or "yolo10" in probe:
-        return "YOLOv10"
-    if "yolov9" in probe or "yolo9" in probe:
-        return "YOLOv9"
     if "yolov8" in probe or "yolo8" in probe:
         return "YOLOv8"
-    if "yolov5" in probe or "yolo5" in probe:
-        return "YOLOv5"
     return "YOLO"
 
 
@@ -494,20 +486,19 @@ if not defects_summary:
     )
 else:
     # ------------------------------------------------------------------
-    # Flat per-frame summary: one card per unique frame that contains
-    # ANY defect (across all classes). All boxes for all classes in
-    # that frame are drawn together. Adjacent samples and same-scene
-    # duplicates collapse via time-bucket + spatial-IoU dedup so the
-    # camera lingering on one wall doesn't fill the page.
+    # Flat per-defect summary: one card per unique *physical* defect
+    # place (across all classes). Implemented in defect_analyzer via
+    # spatial-track clustering, so a wall with one crack visible across
+    # 20 sampled frames becomes a single card -- no more duplicate-
+    # frame spam when the camera lingers, regardless of bbox jitter.
     # ------------------------------------------------------------------
-    st.caption("🎞️ Each defect-containing frame is shown below.")
+    st.caption("🎞️ One card per distinct physical defect (duplicates merged).")
     instances_dir = run_dir / "summary_instances"
     flat_instances = render_any_defect_frame_instances(
         input_path,
         report_obj.frames,
         out_dir=instances_dir,
-        dedup_seconds=1.5,
-        max_instances=3,
+        max_instances=12,
     )
 
     if not flat_instances:

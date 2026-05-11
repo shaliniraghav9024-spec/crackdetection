@@ -6,24 +6,24 @@ Evaluate one or more trained weights files on the val set and print a
 side-by-side mAP comparison table.
 
 Useful for comparing:
-  • YOLOv8m baseline  vs  YOLOv11n-EMC
+  • YOLOv8n  vs  YOLOv8s  vs  YOLOv8m
   • Different training runs / checkpoints
   • Last.pt vs best.pt
 
 Usage:
     # Compare two checkpoints
     python validate_and_compare.py \
-        --weights runs/detect/bd3_yolov8m/weights/best.pt \
-                  runs/detect/yolo11_emc_building/weights/best.pt \
-        --labels "YOLOv8m-baseline" "YOLOv11n-EMC"
+        --weights runs/detect/bd3_yolov8n/weights/best.pt \
+                  runs/detect/bd3_yolov8s/weights/best.pt \
+        --labels "YOLOv8n" "YOLOv8s"
 
     # Quick single-model validation
     python validate_and_compare.py \
-        --weights runs/detect/yolo11_emc_building/weights/best.pt
+        --weights runs/detect/bd3_yolov8n/weights/best.pt
 
     # Higher-resolution validation
     python validate_and_compare.py \
-        --weights runs/detect/yolo11_emc_building/weights/best.pt \
+        --weights runs/detect/bd3_yolov8n/weights/best.pt \
         --imgsz 960
 """
 

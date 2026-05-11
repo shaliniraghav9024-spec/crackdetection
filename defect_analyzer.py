@@ -1,10 +1,9 @@
 """
 YOLOv8-based defect detector for the BD3 building-defects dataset.
 
-Replaces the previous ResNet-18 + CAM stack. Given an image or a video,
-runs a fine-tuned YOLOv8 detector to produce real bounding boxes per
-defect, aggregates per-class statistics, saves annotated keyframes and
-(for videos) writes an annotated MP4 if requested.
+Given an image or a video, runs a fine-tuned YOLOv8 detector to produce
+real bounding boxes per defect, aggregates per-class statistics, saves
+annotated keyframes and (for videos) writes an annotated MP4 if requested.
 
 Public surface kept stable for app.py / report_generator.py:
     * CLASS_NAMES, CLASS_ALIASES, SEVERITY, RECOMMENDATIONS
@@ -876,6 +875,8 @@ def _predict_one(member: "_Member", frame_bgr: np.ndarray,
     cls_ids = r.boxes.cls.cpu().numpy().astype(int)
     confs = r.boxes.conf.cpu().numpy()
     out: list[Detection] = []
+    # Valid defect-class labels (excludes "normal"). Built once per call.
+    _allowed = {c for c in CLASS_NAMES if c != "normal"}
     for (x1, y1, x2, y2), cid, c in zip(xyxy, cls_ids, confs):
         if isinstance(names, dict):
             raw_label = names.get(int(cid), str(cid))
@@ -887,6 +888,16 @@ def _predict_one(member: "_Member", frame_bgr: np.ndarray,
         else:
             mapped = raw_label  # passthrough for unmapped classes
         if mapped is None or mapped == "normal":
+            continue
+        # Normalize aliases (e.g. "crack" -> "minor_crack", "watermark"
+        # -> "stain") so equivalent labels collapse to the canonical name.
+        mapped = CLASS_ALIASES.get(mapped, mapped)
+        # STRICT allow-list: anything that is not one of our defect
+        # classes is dropped. This is what prevents stock-COCO labels
+        # ("bird", "clock", "person", "tv", "chair", ...) from leaking
+        # through as fake defects when the fallback yolov8m.pt is used
+        # or when an aux model emits an unmapped class.
+        if mapped not in _allowed:
             continue
         adj_conf = float(c) + member.conf_offset
         if adj_conf < conf:
@@ -2534,23 +2545,38 @@ def render_any_defect_frame_instances(
     frames: list[FramePrediction],
     *,
     out_dir: str | Path,
-    dedup_seconds: float = 1.5,
-    scene_iou_threshold: float = 0.4,
-    scene_match_threshold: float = 0.5,
+    dedup_seconds: float = 1.5,            # kept for backwards-compat
+    scene_iou_threshold: float = 0.4,      # kept for backwards-compat
+    scene_match_threshold: float = 0.5,    # kept for backwards-compat
     max_instances: int = 3,
     keep_labels: set[str] | None = None,
+    track_max_gap_sec: float = 3.5,
 ) -> list[dict]:
-    """One annotated full-frame image per unique frame that contains
-    *any* defect (across all classes), with all detections drawn on it.
+    """One annotated frame per **unique physical defect place**, across
+    all classes, with all box-detections for that frame drawn together.
 
-    Same dedup strategy as ``render_class_frame_instances`` (time bucket
-    + spatial-IoU scene match) but operating on the union of detections
-    across classes. Useful for the "each defect-containing frame is
-    shown below" flat list view in the Streamlit summary.
+    The previous implementation used a loose time-bucket + box-IoU dedup
+    which often left 2-3 cards for the same physical defect because
+    YOLO bbox jitter pushed inter-frame IoU below the threshold. This
+    version instead clusters each class's detections into spatial
+    *tracks* (via ``_build_place_tracks``) so a static-camera crack
+    seen across 20 sampled frames becomes one track -> one summary
+    card, regardless of bbox jitter.
 
-    ``keep_labels`` -- if provided, only frames containing at least one
-    detection in this set are considered. Defaults to "anything that
-    isn't 'normal'" so background frames are still excluded.
+    Algorithm:
+      1. For every defect class, build per-class tracks of contiguous
+         detections (same physical location, within ``track_max_gap_sec``).
+      2. Weak / one-off tracks are filtered out via the same heuristic
+         the per-defect view uses (``_filter_place_tracks``).
+      3. Each track contributes its best (highest-confidence) frame.
+         Multiple tracks that share the same best frame collapse into
+         **one** card whose image shows all of their boxes together.
+      4. Cards are ranked by combined box count + confidence, capped at
+         ``max_instances``, then re-sorted chronologically for display.
+
+    The ``dedup_seconds`` / ``scene_*`` parameters are kept in the
+    signature for backwards compatibility with old callers but no
+    longer affect the result -- track-based dedup supersedes them.
     """
     video_path = Path(video_path).resolve()
     out_dir = Path(out_dir)
@@ -2558,94 +2584,102 @@ def render_any_defect_frame_instances(
     if keep_labels is None:
         keep_labels = {c for c in CLASS_NAMES if c != "normal"}
 
-    candidates: list[dict] = []
-    for fp in frames:
-        dets = [d for d in (fp.detections or []) if d.label in keep_labels]
-        if not dets:
-            continue
-        candidates.append({
-            "time_sec": float(fp.time_sec),
-            "frame_idx": int(fp.frame_idx),
-            "detections": dets,
-            "num_boxes": len(dets),
-            "max_confidence": max(d.confidence for d in dets),
-            "labels": sorted({d.label for d in dets}),
-        })
-    if not candidates:
-        return []
-
-    # Time-bucket dedup.
-    candidates.sort(key=lambda c: c["time_sec"])
-    bucket_size = max(0.1, float(dedup_seconds))
-    keyed: dict[int, dict] = {}
-    for c in candidates:
-        key = int(c["time_sec"] // bucket_size)
-        prev = keyed.get(key)
-        if (prev is None
-                or c["num_boxes"] > prev["num_boxes"]
-                or (c["num_boxes"] == prev["num_boxes"]
-                    and c["max_confidence"] > prev["max_confidence"])):
-            keyed[key] = c
-    time_deduped = sorted(keyed.values(), key=lambda c: c["time_sec"])
-
-    # Spatial dedup across the box union.
-    deduped: list[dict] = []
-    for c in time_deduped:
-        merged_idx: int | None = None
-        for i, k in enumerate(deduped):
-            sim = _scene_match_fraction(
-                c["detections"], k["detections"],
-                iou_thr=scene_iou_threshold,
-            )
-            if sim >= scene_match_threshold:
-                merged_idx = i
-                break
-        if merged_idx is None:
-            deduped.append(c)
-            continue
-        existing = deduped[merged_idx]
-        replace = (
-            c["num_boxes"] > existing["num_boxes"]
-            or (c["num_boxes"] == existing["num_boxes"]
-                and c["max_confidence"] > existing["max_confidence"])
-        )
-        if replace:
-            deduped[merged_idx] = c
-
-    # Rank, cap, then chronological.
-    deduped.sort(key=lambda c: (-c["num_boxes"], -c["max_confidence"]))
-    deduped = deduped[:max_instances]
-    deduped.sort(key=lambda c: c["time_sec"])
-
+    # Use the first detection's container frame to read video dims --
+    # avoids opening the video twice when we can avoid it.
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         return []
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
+
+    # 1+2. Build & filter per-class tracks.
+    classes_present = sorted({
+        d.label for fp in frames for d in (fp.detections or [])
+        if d.label in keep_labels
+    })
+    if not classes_present:
+        cap.release()
+        return []
+
+    all_tracks: list[dict] = []
+    for label in classes_present:
+        tracks = _build_place_tracks(
+            frames,
+            label=label,
+            width=width,
+            height=height,
+            max_gap_sec=track_max_gap_sec,
+        )
+        tracks = _filter_place_tracks(tracks)
+        all_tracks.extend(tracks)
+
+    if not all_tracks:
+        cap.release()
+        return []
+
+    # 3. Group tracks by their best frame_idx (so a single frame that is
+    # the keyframe for multiple defects shows up as ONE card with all
+    # boxes). For each group we also union the detection list across
+    # tracks so _draw_detections can draw them all.
+    by_frame: dict[int, dict] = {}
+    for t in all_tracks:
+        fi = int(t["frame_idx"])
+        det = Detection(
+            label=t["label"],
+            confidence=float(t["confidence"]),
+            bbox=tuple(int(v) for v in t["bbox"]),  # type: ignore[arg-type]
+        )
+        slot = by_frame.get(fi)
+        if slot is None:
+            by_frame[fi] = {
+                "frame_idx": fi,
+                "time_sec": float(t["time_sec"]),
+                "detections": [det],
+                "labels_set": {t["label"]},
+                "num_boxes": 1,
+                "max_confidence": float(t["confidence"]),
+            }
+        else:
+            slot["detections"].append(det)
+            slot["labels_set"].add(t["label"])
+            slot["num_boxes"] += 1
+            slot["max_confidence"] = max(
+                slot["max_confidence"], float(t["confidence"]),
+            )
+
+    grouped = list(by_frame.values())
+
+    # 4. Rank by combined evidence (more distinct defects -> higher; tie-
+    # break on max confidence), cap, then chronological for display.
+    grouped.sort(key=lambda g: (-g["num_boxes"], -g["max_confidence"]))
+    grouped = grouped[:max_instances]
+    grouped.sort(key=lambda g: g["time_sec"])
 
     instances: list[dict] = []
     try:
-        for c in deduped:
-            cap.set(cv2.CAP_PROP_POS_MSEC, c["time_sec"] * 1000.0)
+        for g in grouped:
+            cap.set(cv2.CAP_PROP_POS_MSEC, g["time_sec"] * 1000.0)
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
             stamp = (
-                f"frame {c['frame_idx']}  t={c['time_sec']:.1f}s  "
-                f"({c['num_boxes']} defect"
-                f"{'s' if c['num_boxes'] != 1 else ''})"
+                f"frame {g['frame_idx']}  t={g['time_sec']:.1f}s  "
+                f"({g['num_boxes']} defect"
+                f"{'s' if g['num_boxes'] != 1 else ''})"
             )
             annotated = _draw_detections(
-                frame, c["detections"], timestamp_text=stamp,
+                frame, g["detections"], timestamp_text=stamp,
             )
-            stem = f"any_inst_t{c['time_sec']:.2f}.jpg"
+            stem = f"any_inst_t{g['time_sec']:.2f}.jpg"
             out_path = out_dir / stem
             cv2.imwrite(str(out_path), annotated)
             instances.append({
                 "image_path": str(out_path),
-                "time_sec": c["time_sec"],
-                "frame_idx": c["frame_idx"],
-                "num_boxes": c["num_boxes"],
-                "max_confidence": float(c["max_confidence"]),
-                "labels": c["labels"],
+                "time_sec": g["time_sec"],
+                "frame_idx": g["frame_idx"],
+                "num_boxes": g["num_boxes"],
+                "max_confidence": float(g["max_confidence"]),
+                "labels": sorted(g["labels_set"]),
             })
     finally:
         cap.release()

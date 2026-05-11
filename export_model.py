@@ -2,7 +2,7 @@
 """
 export_model.py
 ---------------
-Export a trained YOLOv11/v8 .pt checkpoint to production-ready formats.
+Export a trained YOLOv8 .pt checkpoint to production-ready formats.
 
 Supported formats and typical use-cases:
   • openvino  — Intel CPU / integrated GPU inference (fastest on-device)
@@ -13,7 +13,7 @@ Supported formats and typical use-cases:
 
 Usage:
     # Default: OpenVINO FP32
-    python export_model.py --weights runs/detect/yolo11_emc_building/weights/best.pt
+    python export_model.py --weights runs/detect/bd3_yolov8n/weights/best.pt
 
     # ONNX with dynamic batch
     python export_model.py --weights best.pt --format onnx --dynamic

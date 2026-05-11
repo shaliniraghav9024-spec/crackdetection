@@ -139,15 +139,14 @@ output
 dataset/
 dataset_old/
 dataset_remapped/
-bd3_dataset/
-merged_dataset/
-BD3-Dataset/
-test/
 
 # YOLO training artifacts
 runs/
 *.cache
 labels.cache
+
+# Validator / merge / remap run reports
+dataset_*_report.json
 
 # Pretrained model weights (download separately — too large for git)
 *.pt

@@ -14,7 +14,7 @@ prints the best config to stdout and saves it to hyp_best.yaml.
 Usage:
     python tune_hyperparams.py
     python tune_hyperparams.py --iterations 50 --epochs 30
-    python tune_hyperparams.py --model yolo11s.pt --gpu 0
+    python tune_hyperparams.py --model yolov8s.pt --gpu 0
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ TUNE_SPACE = {
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model",      default="yolo11n.pt")
+    p.add_argument("--model",      default="yolov8n.pt")
     p.add_argument("--data",       default="data.yaml")
     p.add_argument("--iterations", type=int, default=30,
                    help="Number of Ray Tune iterations.")
